@@ -35,7 +35,8 @@
         </button>
 
         <a href="index.html" class="btn btn-secondary"
-          >⬅ العودة إلى لوحة التحكم</a>
+          >⬅ العودة إلى لوحة التحكم</a
+        >
       </div>
 
       <!-- Drafts Table -->
@@ -44,7 +45,10 @@
           <tr>
             <th><input type="checkbox" id="selectAll" /></th>
             <th>الموضوع</th>
-            <th>تاريخ الإنشاء</th>
+            <th>الرقم</th>
+            <th>تاريخ المستند</th>
+            <th>عدد الأوراق</th>
+            <th>المرسل إليهم</th>
             <th>الإجراءات</th>
           </tr>
         </thead>
@@ -84,7 +88,18 @@
                   d.id
                 }" ${d.is_sent ? "disabled" : ""}></td>
                 <td>${d.title}</td>
-                <td>${new Date(d.created_at).toLocaleString()}</td>
+                <td>${d.doc_num}</td>
+                <td>${new Date(d.doc_date).toLocaleString()}</td>
+                <td>${d.number_papers}</td>
+                <td>
+      ${
+        Array.isArray(d.destinations)
+          ? d.destinations
+              .map((dest) => (typeof dest === "object" ? dest.name : dest))
+              .join(" ، ")
+          : "-"
+      }
+    </td>
                 <td>
                     ${
                       d.is_sent

@@ -152,7 +152,7 @@ module.exports = {
       const { start, end } = req.query;
 
       let query = `
-            SELECT id, title, created_at 
+            SELECT *
             FROM documents 
             WHERE sender_id=@sender_id AND is_sent=0
         `;
