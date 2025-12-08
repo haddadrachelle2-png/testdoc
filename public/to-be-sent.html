@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>البريد للإرسال</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+</head>
+<body class="p-4">
+
+<div class="container">
+    <h3>📤 البريد للإرسال</h3>
+    <p class="text-muted">البريد المعلق من أعضاء مجموعتك جاهز للموافقة والإرسال.</p>
+
+    <!-- Filter by group -->
+    <div class="row mb-3">
+        <div class="col-md-3">
+            <label>تصفية حسب مجموعة الوجهة</label>
+            <select id="groupFilter" class="form-control">
+                <option value="">جميع المجموعات</option>
+            </select>
+        </div>
+        <div class="col-md-3 align-self-end">
+            <button id="filterBtn" class="btn btn-primary">تصفية</button>
+        </div>
+    </div>
+
+    <!-- Bulk actions -->
+    <div class="mb-3 d-flex justify-content-between align-items-center">
+        <button id="bulkApproveBtn" class="btn btn-success btn-sm">الموافقة والإرسال </button>
+        <a href="index.html" class="btn btn-secondary">⬅ العودة إلى لوحة التحكم</a>
+    </div>
+
+    <!-- Documents Table -->
+    <table class="table table-bordered mt-3">
+        <thead>
+            <tr>
+                <th style="width: 40px;"><input type="checkbox" id="selectAllCheckbox"></th>
+                <th>الموضوع</th>
+                <th>المحتوى</th>
+                <th>تم الإنشاء بواسطة المجموعة</th>
+                <th>تاريخ الإنشاء</th>
+                <th>الوجهات</th>
+                <th>الإجراءات</th>
+            </tr>
+        </thead>
+        <tbody id="pendingTable"></tbody>
+    </table>
+
+</div>
+
+<script>
+const token = localStorage.getItem("token");
+if (!token) location.href = "login.html";
+
+const pendingTable = document.getElementById("pendingTable");
+const groupFilter = document.getElementById("groupFilter");
+let allDocuments = [];
+let allGroups = [];
+
+// Load pending documents (unsent documents from group members)
+async function loadPendingDocuments() {
+    try {
+        const res = await fetch(`/api/documents/pending`, {
+            headers: { "Authorization": "Bearer " + token }
+        });
+        
+        if (!res.ok) {
+            alert("Error loading documents");
+            return;
+        }
+
+        allDocuments = await res.json();
+        await populateGroupFilter();
+        renderTable();
+
+    } catch (err) {
+        console.error(err);
+        alert("Network error");
+    }
+}
+
+// Populate group filter dropdown by fetching destinations for each document
+async function populateGroupFilter() {
+    const groupSet = new Set();
+    
+    for (const doc of allDocuments) {
+        try {
+            const destRes = await fetch(`/api/documents/${doc.id}/destinations`, {
+                headers: { "Authorization": "Bearer " + token }
+            });
+            const dests = await destRes.json();
+            dests.forEach(d => groupSet.add(d.name));
+        } catch (err) {
+            console.error('Error fetching destinations:', err);
+        }
+    }
+    
+    allGroups = Array.from(groupSet).sort();
+    
+    allGroups.forEach(group => {
+        const option = document.createElement('option');
+        option.value = group;
+        option.textContent = group;
+        groupFilter.appendChild(option);
+    });
+}
+
+// Render table with optional group filter
+async function renderTable() {
+    const selectedGroup = groupFilter.value;
+    let filteredDocs = allDocuments;
+
+    pendingTable.innerHTML = "";
+
+    for (const doc of filteredDocs) {
+        // Fetch destination names
+        const destRes = await fetch(`/api/documents/${doc.id}/destinations`, {
+            headers: { "Authorization": "Bearer " + token }
+        });
+        const dests = await destRes.json();
+        const destNames = dests.map(d => d.name).join(", ");
+
+        // Filter by group if selected
+        if (selectedGroup && !destNames.includes(selectedGroup)) {
+            continue;
+        }
+
+        // Get creator's group name (using senderName which now contains group name from backend)
+        const creatorGroup = doc.senderName || "N/A";
+
+        pendingTable.innerHTML += `
+            <tr>
+                <td><input type="checkbox" class="doc-checkbox" value="${doc.id}"></td>
+                <td>${doc.title}</td>
+                <td>${doc.content.substring(0, 100)}${doc.content.length > 100 ? '...' : ''}</td>
+                <td>${creatorGroup}</td>
+                <td>${new Date(doc.created_at).toLocaleString()}</td>
+                <td>${destNames || "N/A"}</td>
+                <td>
+                    <button onclick="approveDoc(${doc.id})" class="btn btn-sm btn-success">الموافقة والإرسال</button>
+                </td>
+            </tr>
+        `;
+    }
+
+    if (pendingTable.innerHTML === "") {
+        pendingTable.innerHTML = `<tr><td colspan="7" class="text-center text-muted">No pending documents</td></tr>`;
+    }
+}
+ 
+// View document details
+function viewDoc(id) {
+    window.location.href = `view-document.html?id=${id}`;
+}
+
+// Approve and send document
+async function approveDoc(id) {
+    if (!confirm("Approve and send this document?")) return;
+
+    try {
+        const res = await fetch(`/api/documents/approve/${id}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + token
+            }
+        });
+
+        if (res.ok) {
+            alert("Document approved and sent successfully");
+            loadPendingDocuments();
+        } else {
+            alert("Error approving document");
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Network error");
+    }
+}
+
+// Filter button
+document.getElementById("filterBtn").addEventListener("click", renderTable);
+
+// Select All checkbox
+document.getElementById("selectAllCheckbox").addEventListener("change", function() {
+    document.querySelectorAll(".doc-checkbox").forEach(cb => cb.checked = this.checked);
+});
+
+// Bulk Approve button
+document.getElementById("bulkApproveBtn").addEventListener("click", async function() {
+    const selectedIds = Array.from(document.querySelectorAll(".doc-checkbox:checked")).map(cb => cb.value);
+    
+    if (selectedIds.length === 0) {
+        alert("Please select at least one document");
+        return;
+    }
+    
+    if (!confirm(`Approve and send ${selectedIds.length} document(s)?`)) return;
+
+    try {
+        const res = await fetch(`/api/documents/approve-bulk`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + token
+            },
+            body: JSON.stringify({ ids: selectedIds })
+        });
+
+        if (res.ok) {
+            alert("Documents approved and sent successfully");
+            loadPendingDocuments();
+        } else {
+            alert("Error approving documents");
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Network error");
+    }
+});
+
+
+
+
+
+// Initial load
+loadPendingDocuments();
+</script>
+
+</body>
+</html>

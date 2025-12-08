@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>البريد الوارد</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+</head>
+<body class="p-4">
+
+<div class="container">
+    <h3>البريد الوارد</h3>
+
+    <!-- Search Filters -->
+    <div class="row mb-3">
+        <div class="col-md-3">
+            <label>تاريخ البدء</label>
+            <input type="date" id="startDate" class="form-control">
+        </div>
+        <div class="col-md-3">
+            <label>تاريخ الانتهاء</label>
+            <input type="date" id="endDate" class="form-control">
+        </div>
+        <div class="col-md-3 align-self-end">
+            <button id="searchBtn" class="btn btn-primary">بحث</button>
+        </div>
+    </div>
+
+    <!-- Action Button -->
+    <div class="mb-3 d-flex justify-content-between">
+        <button id="markBtn" class="btn btn-success">وضع علامة على المحدد كمقروء</button>
+        <a href="index.html" class="btn btn-secondary">⬅ العودة إلى لوحة التحكم</a>
+    </div>
+
+    <!-- Inbox Table -->
+    <table class="table table-bordered mt-2">
+        <thead>
+            <tr>
+                <th><input type="checkbox" id="selectAll"></th>
+                <th>الموضوع</th>
+                <th>المحتوى</th>
+                <th>تاريخ الإنشاء</th>
+                <th>مرسل من قبل</th>
+                <!-- <th>Received</th> -->
+                <th>المرسل إليه</th>
+                <th>الإجراءات</th>
+            </tr>
+        </thead>
+        <tbody id="inboxTable"></tbody>
+    </table>
+
+</div>
+
+
+<script>
+const token = localStorage.getItem("token");
+if (!token) location.href="login.html";
+
+const inboxTable = document.getElementById("inboxTable");
+
+// Load inbox with optional date filter
+async function loadInbox() {
+    const start = document.getElementById("startDate").value;
+    const end = document.getElementById("endDate").value;
+
+    let url = `/api/documents/inbox`;
+    const params = [];
+
+    if(start) params.push(`start=${start}`);
+    if(end) params.push(`end=${end}`);
+
+    if(params.length) url += "?" + params.join("&");
+
+    const res = await fetch(url, { headers: { "Authorization": "Bearer " + token } });
+
+    const inbox = await res.json();
+    console.log(inbox);
+    inboxTable.innerHTML = "";
+
+    inbox.forEach(async (d) => {
+        // Fetch destination names for this document
+        const destRes = await fetch(`/api/documents/${d.id}/destinations`, {
+            headers: { "Authorization": "Bearer " + token }
+        });
+        const dests = await destRes.json();
+        const destNames = dests.map(dest => dest.name).join(", ");
+
+        inboxTable.innerHTML += `
+            <tr>
+                <td><input type="checkbox" class="inboxCheckbox" value="${d.id}" ${d.is_received || d.is_admin_group ? "disabled" : ""}></td>
+                <td>${d.title}</td>
+                <td>${d.content}</td>
+                <td>${new Date(d.created_at).toLocaleString()}</td>
+                <td>${d.senderName}</td>
+                <td>${destNames || "N/A"}</td>
+                <td>${d.is_received || d.is_admin_group ? "Approved" : "Pending"}</td>
+                
+                <td>
+                    <button onclick="viewDoc(${d.id})" class="btn btn-sm btn-primary">View</button>
+                </td>
+            </tr>
+        `;
+    });
+}
+// <td>
+//                     <span class="badge ${d.status === 'pending' ? 'bg-warning' : 'bg-success'}">
+//                         ${d.status}
+//                     </span>
+// </td>
+
+
+// Search
+document.getElementById("searchBtn").addEventListener("click", loadInbox);
+
+// Select All
+document.getElementById("selectAll").addEventListener("change", e => {
+    document.querySelectorAll(".inboxCheckbox").forEach(cb => {
+        if(!cb.disabled) cb.checked = e.target.checked;
+    });
+});
+
+// Mark Selected as Seen
+document.getElementById("markBtn").addEventListener("click", async () => {
+    const selected = Array.from(document.querySelectorAll(".inboxCheckbox:checked"))
+                    .map(cb => cb.value);
+
+    if(selected.length === 0){
+        alert("Select at least one document");
+        return;
+    }
+console.log(selected);
+    const res = await fetch("/api/documents/markseen", {
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json",
+            "Authorization":"Bearer "+token
+        },
+        body: JSON.stringify({ inboxIds: selected })
+    });
+
+    const msg = await res.json();
+    alert(msg.message || "Updated");
+    loadInbox();
+});
+
+// View single document
+function viewDoc(id) {
+    window.location.href = `view-document.html?id=${id}`;
+}
+
+// Initial load
+loadInbox();
+</script>
+
+</body>
+</html>

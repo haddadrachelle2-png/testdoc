@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>بريد جديد</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="container mt-5">
+      <h3>بريد جديد</h3>
+      <form id="docForm">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <button class="btn btn-primary">حفظ</button>
+
+          <a href="index.html" class="btn btn-secondary"
+            >⬅ العودة إلى لوحة التحكم</a
+          >
+        </div>
+
+        <div id="errorBox" class="alert alert-danger d-none"></div>
+        <div id="successBox" class="alert alert-success d-none"></div>
+
+        <div class="mb-3 d-flex align-items-center">
+          <label class="form-label me-3" for="title">الموضوع</label>
+          <input
+            id="title"
+            class="form-control me-3"
+            required
+            style="flex: 1"
+          />
+
+          <!-- Personal Checkbox -->
+          <div class="form-check mb-0">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              id="personalDocument"
+            />
+            <label class="form-check-label" for="personalDocument">
+              شخصي
+            </label>
+          </div>
+        </div>
+
+        <div class="mb-3 d-flex align-items-center gap-3">
+          <!-- Doc Number -->
+          <div class="d-flex flex-column" style="flex: 0 0 auto">
+            <label class="form-label">الرقم</label>
+            <input
+              id="doc_num"
+              class="form-control me-3"
+              type="text"
+              style="max-width: 150px"
+              required
+            />
+          </div>
+          <div class="d-flex flex-column" style="flex: 0 0 auto">
+            <label class="form-label">تاريخ الإنشاء</label>
+            <input
+              type="date"
+              id="doc_date"
+              class="form-control me-3"
+              type="text"
+              style="max-width: 150px"
+              required
+            />
+          </div>
+
+          <div class="d-flex flex-column" style="flex: 0 0 auto">
+            <label class="form-label"> عدد الأوراق المرفقة</label>
+            <input
+              id="number_papers"
+              class="form-control me-3"
+              type="text"
+              style="max-width: 150px"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">المحتوى</label>
+          <textarea
+            id="content"
+            class="form-control"
+            rows="6"
+            required
+          ></textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">إرفاق ملف</label>
+          <input
+            type="file"
+            id="attachment"
+            class="form-control"
+            accept="*/*"
+          />
+        </div>
+        <div class="mb-3">
+          <div class="form-check mb-2">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              id="selectAllDestinations"
+            />
+            <label class="form-check-label" for="selectAllDestinations">
+              المرسل إليهم
+            </label>
+          </div>
+
+          <!-- Destination Checkboxes -->
+          <div
+            id="destinationsBox"
+            class="row border rounded p-3"
+            style="max-height: 250px; overflow-y: auto"
+          ></div>
+        </div>
+      </form>
+    </div>
+
+    <script>
+      const token = localStorage.getItem("token");
+      if (!token) location.href = "login.html";
+
+      document
+        .getElementById("selectAllDestinations")
+        .addEventListener("change", function () {
+          const checked = this.checked;
+          document.querySelectorAll(".dest-check").forEach((cb) => {
+            cb.checked = checked;
+          });
+        });
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const docId = urlParams.get("id");
+
+      let userGroupId = null;
+
+      // Fetch current user info
+      fetch("/api/users/me", { headers: { Authorization: "Bearer " + token } })
+        .then((res) => res.json())
+        .then((user) => {
+          userGroupId = user.group_id;
+          if (docId) {
+            loadDraft(docId);
+          } else {
+            loadGroups(); // normal creation
+          }
+        });
+
+      function updateSelectAll() {
+        const all = document.querySelectorAll(".dest-check");
+        const checked = document.querySelectorAll(".dest-check:checked");
+        document.getElementById("selectAllDestinations").checked =
+          all.length > 0 && all.length === checked.length;
+      }
+
+      function chunkArray(arr, size) {
+        const result = [];
+        for (let i = 0; i < arr.length; i += size) {
+          result.push(arr.slice(i, i + size));
+        }
+        return result;
+      }
+
+     function loadGroups() {
+  fetch("/api/users/groups", {
+    headers: { Authorization: "Bearer " + token },
+  })
+    .then((res) => res.json())
+    .then((groups) => {
+      // Exclude current user's group
+      const filtered = groups.filter((g) => g.id != userGroupId);
+
+      // Sort by id ascending
+      filtered.sort((a, b) => a.id - b.id);
+
+      // Split into columns with 5 rows each
+      const rowsPerColumn = 5; // 5 rows max per column
+      const columns = chunkArray(filtered, rowsPerColumn);
+
+      const box = document.getElementById("destinationsBox");
+      box.innerHTML = "";
+
+      columns.forEach((col) => {
+        let colHtml = `<div class="col-12 col-sm-6 col-md-2">`; // 5 columns
+
+        col.forEach((g) => {
+          colHtml += `
+            <div class="form-check">
+              <input class="form-check-input dest-check"
+                     type="checkbox"
+                     value="${g.id}"
+                     id="group_${g.id}">
+              <label class="form-check-label" for="group_${g.id}">
+                ${g.name}
+              </label>
+            </div>
+          `;
+        });
+
+        colHtml += `</div>`;
+        box.innerHTML += colHtml;
+      });
+
+      updateSelectAll();
+    });
+}
+function loadDraft(id) {
+  fetch(`/api/documents/${id}`, {
+    headers: { Authorization: "Bearer " + token },
+  })
+    .then((res) => res.json())
+    .then((doc) => {
+      document.getElementById("title").value = doc.title;
+      document.getElementById("content").value = doc.content;
+      document.getElementById("doc_num").value = doc.doc_num;
+      document.getElementById("doc_date").value = doc.doc_date;
+      document.getElementById("number_papers").value = doc.number_papers;
+
+      // Normalize destination IDs
+      let selectedIds = [];
+      if (Array.isArray(doc.destinations)) {
+        if (typeof doc.destinations[0] === "object") {
+          selectedIds = doc.destinations.map((d) => d.id);
+        } else {
+          selectedIds = doc.destinations;
+        }
+      }
+
+      // Fetch all groups
+      fetch("/api/users/groups", {
+        headers: { Authorization: "Bearer " + token },
+      })
+        .then((res) => res.json())
+        .then((groups) => {
+          // Exclude current user's group
+          const filtered = groups.filter((g) => g.id != userGroupId);
+
+          // Sort by id ascending
+          filtered.sort((a, b) => a.id - b.id);
+
+          // Split into columns with 5 rows each
+          const rowsPerColumn = 5;
+          const columns = chunkArray(filtered, rowsPerColumn);
+
+          const box = document.getElementById("destinationsBox");
+          box.innerHTML = "";
+
+          columns.forEach((col) => {
+            let colHtml = `<div class="col-12 col-sm-6 col-md-2">`; // 5 columns
+
+            col.forEach((g) => {
+              const isChecked = selectedIds.includes(g.id);
+
+              colHtml += `
+                <div class="form-check">
+                  <input class="form-check-input dest-check"
+                         type="checkbox"
+                         value="${g.id}"
+                         id="group_${g.id}"
+                         ${isChecked ? "checked" : ""}>
+                  <label class="form-check-label" for="group_${g.id}">
+                    ${g.name}
+                  </label>
+                </div>
+              `;
+            });
+
+            colHtml += `</div>`;
+            box.innerHTML += colHtml;
+          });
+
+          updateSelectAll();
+        });
+    });
+}
+     
+
+      document.getElementById("docForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const title = document.getElementById("title").value.trim();
+          const content = document.getElementById("content").value.trim();
+          const doc_num = document.getElementById("doc_num").value.trim();
+          const doc_date = document.getElementById("doc_date").value.trim();
+          const number_papers = document
+            .getElementById("number_papers")
+            .value.trim();
+          // const destinations = Array.from(document.getElementById("destinations").selectedOptions).map(o=>o.value);
+          const destinations = Array.from(
+            document.querySelectorAll(".dest-check:checked")
+          ).map((ch) => ch.value);
+
+          const fileInput = document.getElementById("attachment");
+          const file = fileInput.files[0]; // may be null
+          const payload = {
+            title,
+            content,
+            doc_num,
+            doc_date,
+            number_papers,
+            destinations,
+          };
+
+          if (docId) payload.id = docId; // include id if editing
+
+          const res = await fetch("/api/documents/save", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer " + token,
+            },
+            body: JSON.stringify(payload),
+          });
+
+          const msg = await res.json();
+          if (!res.ok) {
+            show("errorBox", msg.message || "خطأ في حفظ المستند");
+          } else {
+            show("successBox", msg.message);
+            if (!docId) document.getElementById("docForm").reset();
+          }
+
+          // 2️⃣ Upload file only after document is created
+          if (file) {
+            const formData = new FormData();
+            formData.append("file", file);
+
+            await fetch(`/api/documents/upload/${msg.document_id}`, {
+              method: "POST",
+              headers: {
+                Authorization: "Bearer " + token,
+              },
+              body: formData,
+            });
+          }
+        });
+
+      function show(id, text) {
+        const box = document.getElementById(id);
+        box.innerText = text;
+        box.classList.remove("d-none");
+        setTimeout(() => box.classList.add("d-none"), 3500);
+      }
+    </script>
+  </body>
+</html>

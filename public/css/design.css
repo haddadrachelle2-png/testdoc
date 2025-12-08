@@ -1,0 +1,3 @@
+.dest-check:checked + label {
+    font-weight: bold;
+}

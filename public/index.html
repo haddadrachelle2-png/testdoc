@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>لوحة التحكم | نظام المستندات</title>
+
+ <!-- Bootstrap RTL -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css"
+      rel="stylesheet"
+    />
+
+    <style>
+     body {
+        /* background-color: #f8f9fa;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; */
+         background:  url("lebanese_army.jpg") no-repeat center bottom fixed;
+         /* background-size: zoomed out */
+         /* background-position: center calc(100% - 40px); move 40px upward */
+         background-position: bottom 20px;
+      }
+      .sidebar {
+        height: 100vh;
+        background: #343a40;
+        color: #fff;
+        padding-top: 30px;
+        position: fixed;
+        width: 230px;
+        right: 0;
+      }
+      .sidebar a {
+        color: #ddd;
+        text-decoration: none;
+        padding: 12px 20px;
+        display: block;
+        text-align: right;
+      }
+      .sidebar a:hover {
+        background: #495057;
+        color: #fff;
+      }
+      .content {
+        margin-right: 240px;
+        padding: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sidebar">
+      <h4 class="text-center mb-4">📁 البريد</h4>
+
+      <a href="drafts.html">📝 بريد غير مرسل</a>
+      <a href="inbox.html">📬 بريد وارد</a>
+      <a href="sent-documents.html">✉️ بريد مرسل</a>
+      <a href="create-document.html">➕ بريد جديد</a>
+
+      <!-- Admin-only link -->
+      <div id="adminLinks"></div>
+
+      <a href="#" id="logoutBtn" class="text-danger mt-5">تسجيل الخروج</a>
+    </div>
+
+     <!-- Content -->
+    <div class="content">
+      <h2 class="mb-3">أهلاً وسهلاً، <span id="username"></span></h2>
+
+      <div class="row">
+        <div class="col-md-4">
+          <div class="card shadow-sm mb-3">
+            <div class="card-body">
+              <h5 class="card-title">مجموعتك</h5>
+              <p class="card-text" id="groupName">جاري التحميل...</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="card shadow-sm mb-3">
+            <div class="card-body">
+              <h5 class="card-title">دورك في المجموعة</h5>
+              <p class="card-text" id="groupRole">جاري التحميل...</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="card shadow-sm mb-3">
+            <div class="card-body">
+              <h5 class="card-title">دور النظام</h5>
+              <p class="card-text" id="systemRole">جاري التحميل...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+      const token = localStorage.getItem("token");
+      if (!token) {
+        location.href = "login.html";
+      }
+
+      function logout() {
+        localStorage.removeItem("token");
+        location.href = "login.html";
+      }
+      document.getElementById("logoutBtn").onclick = logout;
+
+      fetch("/api/users/me", {
+        headers: { Authorization: "Bearer " + token },
+      })
+      .then(res => {
+    if (!res.ok) throw new Error("Unauthorized");
+    return res.json(); // <-- parse JSON here
+       })
+      
+         .then((data) => {
+          document.getElementById("username").innerText = data.username;
+          document.getElementById("groupName").innerText = data.group;
+          document.getElementById("groupRole").innerText = data.is_group_admin
+            ? "مسؤول المجموعة"
+            : "عضو";
+          document.getElementById("systemRole").innerText = data.is_admin_group
+            ? "مسؤول النظام"
+            : "مستخدم عادي";
+
+       // ✅ Show Register User link and to be send link only for admins
+          if (data.is_admin_group) {
+            const adminLinks = document.getElementById("adminLinks");
+            adminLinks.innerHTML = `
+            <a href="to-be-sent.html">📤 إرسال أو تحويل</a>
+            <a href="register.html" class="mt-2">➕ تسجيل مستخدم جديد</a>
+        `;
+          }
+        })
+        .catch((err) => {
+          console.error(err);
+          logout();
+        });
+    </script>
+  </body>
+</html>

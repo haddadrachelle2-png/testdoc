@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>البريد غير المرسل</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="p-4">
+    <div class="container">
+      <h3>البريد غير المرسل</h3>
+
+      <!-- Search Filters -->
+      <div class="row mb-3">
+        <div class="col-md-3">
+          <label>تاريخ البدء</label>
+          <input type="date" id="startDate" class="form-control" />
+        </div>
+        <div class="col-md-3">
+          <label>تاريخ الانتهاء</label>
+          <input type="date" id="endDate" class="form-control" />
+        </div>
+        <div class="col-md-3 align-self-end">
+          <button id="searchBtn" class="btn btn-primary">بحث</button>
+        </div>
+      </div>
+
+      <!-- Send Button -->
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <button id="sendBtn" class="btn btn-success">
+          إرسال البريد المحدد
+        </button>
+
+        <a href="index.html" class="btn btn-secondary"
+          >⬅ العودة إلى لوحة التحكم</a>
+      </div>
+
+      <!-- Drafts Table -->
+      <table class="table table-bordered mt-2">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="selectAll" /></th>
+            <th>الموضوع</th>
+            <th>تاريخ الإنشاء</th>
+            <th>الإجراءات</th>
+          </tr>
+        </thead>
+        <tbody id="draftTable"></tbody>
+      </table>
+
+      <!-- <a href="index.html" class="btn btn-secondary mt-3">⬅ العودة إلى لوحة التحكم</a> -->
+    </div>
+
+    <script>
+      const token = localStorage.getItem("token");
+      if (!token) location.href = "login.html";
+
+      const draftTable = document.getElementById("draftTable");
+
+      // Load drafts with optional date filter
+      async function loadDrafts() {
+        const start = document.getElementById("startDate").value;
+        const end = document.getElementById("endDate").value;
+
+        let url = `/api/documents/drafts`;
+        const params = [];
+        if (start) params.push(`start=${start}`);
+        if (end) params.push(`end=${end}`);
+        if (params.length) url += "?" + params.join("&");
+
+        const res = await fetch(url, {
+          headers: { Authorization: "Bearer " + token },
+        });
+        const drafts = await res.json();
+
+        draftTable.innerHTML = "";
+        drafts.forEach((d) => {
+          draftTable.innerHTML += `
+            <tr>
+                <td><input type="checkbox" class="draftCheckbox" value="${
+                  d.id
+                }" ${d.is_sent ? "disabled" : ""}></td>
+                <td>${d.title}</td>
+                <td>${new Date(d.created_at).toLocaleString()}</td>
+                <td>
+                    ${
+                      d.is_sent
+                        ? ""
+                        : `<a href="create-document.html?id=${d.id}" class="btn btn-sm btn-primary">تعديل</a>`
+                    }
+                </td>
+            </tr>
+        `;
+        });
+      }
+
+      // Search button
+      document
+        .getElementById("searchBtn")
+        .addEventListener("click", loadDrafts);
+
+      // Select All checkbox
+      document.getElementById("selectAll").addEventListener("change", (e) => {
+        document.querySelectorAll(".draftCheckbox").forEach((cb) => {
+          if (!cb.disabled) cb.checked = e.target.checked;
+        });
+      });
+
+      // Send selected drafts
+      document.getElementById("sendBtn").addEventListener("click", async () => {
+        const selected = Array.from(
+          document.querySelectorAll(".draftCheckbox:checked")
+        ).map((cb) => cb.value);
+        if (selected.length === 0) {
+          alert("Select at least one draft");
+          return;
+        }
+
+        const res = await fetch("/api/documents/send", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + token,
+          },
+          body: JSON.stringify({ draftIds: selected }),
+        });
+
+        const msg = await res.json();
+        if (!res.ok) {
+          alert(msg.message || "Error sending drafts");
+        } else {
+          alert(msg.message);
+          loadDrafts();
+        }
+      });
+
+      // Initial load
+      loadDrafts();
+    </script>
+  </body>
+</html>
