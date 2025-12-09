@@ -82,14 +82,14 @@ module.exports = {
     return documentId;
   },
 
-    // Upload file
-  async uploadFile(documentId, file) {
-    const pool = await getPool();
-    await pool
-      .request()
-      .input("id", sql.Int, documentId)
-      .input("doc_file", sql.VarBinary(sql.MAX), file.buffer)
-      .input("doc_ext", sql.NVarChar(10), file.originalname.split(".").pop())
-      .query(`UPDATE documents SET doc_file=@doc_file, doc_ext=@doc_ext WHERE id=@id`);
-  },
+  //   // Upload file
+  // async uploadFile(documentId, file) {
+  //   const pool = await getPool();
+  //   await pool
+  //     .request()
+  //     .input("id", sql.Int, documentId)
+  //     .input("doc_file", sql.VarBinary(sql.MAX), file.buffer)
+  //     .input("doc_ext", sql.NVarChar(10), file.originalname.split(".").pop())
+  //     .query(`UPDATE documents SET doc_file=@doc_file, doc_ext=@doc_ext WHERE id=@id`);
+  // },
 };

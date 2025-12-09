@@ -44,37 +44,7 @@ router.get('/:id', auth, documentController.getDraftById);
 // Multer config - store file in memory as buffer
 
 
-///api/documents/upload/:id
-router.post("/upload/:id", upload.single("file"), async (req, res) => {
-  try {
-    const file = req.file;
-    // const documentId = req.params.id;
-
-    if (!file)
-      return res.status(400).json({ message: "لا يوجد ملف مرفوع" });
-
-    const pool = await getPool();
-const documentId = parseInt(req.params.id, 10);
-if (isNaN(documentId)) return res.status(400).json({ message: "Invalid document id" });
-
-await pool
-  .request()
-  .input("id", sql.Int, documentId)  // ✅ pass as number
-      .input("doc_file", sql.VarBinary(sql.MAX), file.buffer)
-      .input("doc_ext", sql.NVarChar(10), file.originalname.split(".").pop())
-      .query(`
-        UPDATE documents
-        SET doc_file=@doc_file, doc_ext=@doc_ext
-        WHERE id=@id
-      `);
-
-    res.json({ message: "تم حفظ الملف بنجاح" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "خطأ في رفع الملف" });
-  }
-});
-
+router.post("/api/documents/upload/:id", upload.single("file"), documentController.uploadFile);
 
 module.exports = router;
 

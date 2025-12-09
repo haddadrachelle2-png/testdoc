@@ -50,9 +50,10 @@ module.exports = {
     try {
       
       let docId;
+      const safeDocDate = doc_date ? new Date(doc_date) : null;
       if (id) {
         // update existing draft
-       const safeDocDate = doc_date ? new Date(doc_date) : null;
+     
         docId = await documentModel.updateDraft(
           id,
           title,
