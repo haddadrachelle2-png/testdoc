@@ -96,10 +96,15 @@
           <input
             type="file"
             name="attachment"
+            
             id="attachment"
             class="form-control"
             accept="*/*"
           />
+          <!-- If file exists -->
+<a v-if="draft.fileUrl" :href="draft.fileUrl" target="_blank">
+  View existing file
+</a>
         </div>
         <div class="mb-3">
           <div class="form-check mb-2">

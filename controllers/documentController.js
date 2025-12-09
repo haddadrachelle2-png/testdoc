@@ -172,7 +172,8 @@ module.exports = {
         .request()
         .input("id", docId)
         .input("sender_id", userId).query(`
-                    SELECT id, title, content ,doc_num,doc_date,number_papers,doc_file,doc_ext
+                    SELECT id, title, content ,doc_num,doc_date,number_papers,
+                    CASE WHEN doc_file IS NOT NULL THEN 1 ELSE 0 END AS has_file,doc_ext
                     FROM documents 
                     WHERE id=@id AND sender_id=@sender_id AND is_sent=0
                 `);
@@ -184,21 +185,12 @@ module.exports = {
       const document = docResult.recordset[0];
       if (document.doc_date) 
         document.doc_date = document.doc_date.toISOString().split("T")[0];
-        if (!document.doc_file) {
-          return res
-            .status(404)
-            .json({ message: "No file attached to this document" });
-        }
-        // const fileData = result.recordset[0].doc_file; // Buffer
-        // const ext = result.recordset[0].doc_ext || ".bin";
-        // const docNum = result.recordset[0].doc_num || "document";
-
-    // Set proper headers to view in browser
-    // res.setHeader("Content-Disposition", `inline; filename="${docNum}${ext}"`);
-    // res.setHeader("Content-Type", "application/octet-stream"); // or detect MIME type
-
-    // res.send(fileData);
-      
+        // if (!document.doc_file) {
+        //   return res
+        //     .status(404)
+        //     .json({ message: "No file attached to this document" });
+        // }
+       
       // Fetch destinations
       const destResult = await pool
         .request()
@@ -208,14 +200,51 @@ module.exports = {
         );
 
       const destinations = destResult.recordset.map((r) => r.group_id);
-
-      res.json({ ...document, destinations });
+// Return JSON with file info
+    res.json({
+      ...document,
+      destinations,
+      fileUrl: document.has_file ? `/api/documents/${docId}/file` : null
+    });
+      // res.json({ ...document, destinations });
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Server error" });
     }
   },
 
+  async getDraftFile(req, res) {
+  const docId = req.params.id;
+  const userId = req.user.id;
+
+  try {
+    const pool = await getPool();
+    const result = await pool
+      .request()
+      .input("id", docId)
+      .input("sender_id", userId)
+      .query(`
+        SELECT doc_file, doc_ext, doc_num
+        FROM documents
+        WHERE id=@id AND sender_id=@sender_id AND is_sent=0
+      `);
+
+    if (!result.recordset.length || !result.recordset[0].doc_file) {
+      return res.status(404).json({ message: "No file attached" });
+    }
+
+    const fileData = result.recordset[0].doc_file;
+    const ext = result.recordset[0].doc_ext || ".bin";
+    const fileName = (result.recordset[0].doc_num || "document") + ext;
+
+    res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.send(fileData);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+},
   // GET /api/documents/drafts?start=YYYY-MM-DD&end=YYYY-MM-DD
   async getDraftsByDate(req, res) {
     try {
