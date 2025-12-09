@@ -4,8 +4,11 @@ const documentController = require('../controllers/documentController');
 const auth = require('../middleware/auth'); // JWT auth middleware
 const adminOnly = require("../middleware/adminOnly");
 const multer = require("multer");
-// const upload = multer({ dest: "uploads/" });
+
 const upload = multer({ storage: multer.memoryStorage() });
+
+
+// const upload = multer({ storage });
 const { getPool, sql } = require("../config/db");
 
 
@@ -13,7 +16,9 @@ const { getPool, sql } = require("../config/db");
 router.post('/create', auth, documentController.create);
 
 // ✅ Save a document (create or update draft)
-router.post('/save', auth, documentController.save);
+
+
+router.post('/save', auth, upload.single("attachment"),documentController.save);
 // router.post("/upload/:id", auth, upload.single("file"), documentController.uploadFile);
 
 // ✅ Send selected drafts (mark as is_sent=1)
@@ -44,7 +49,7 @@ router.get('/:id', auth, documentController.getDraftById);
 // Multer config - store file in memory as buffer
 
 
-router.post("/api/documents/upload/:id", upload.single("file"), documentController.uploadFile);
+// router.post("/api/documents/upload/:id", upload.single("file"), documentController.uploadFile);
 
 module.exports = router;
 

@@ -95,6 +95,7 @@
           <label class="form-label">إرفاق ملف</label>
           <input
             type="file"
+            name="attachment"
             id="attachment"
             class="form-control"
             accept="*/*"
@@ -167,30 +168,30 @@
         return result;
       }
 
-     function loadGroups() {
-  fetch("/api/users/groups", {
-    headers: { Authorization: "Bearer " + token },
-  })
-    .then((res) => res.json())
-    .then((groups) => {
-      // Exclude current user's group
-      const filtered = groups.filter((g) => g.id != userGroupId);
+      function loadGroups() {
+        fetch("/api/users/groups", {
+          headers: { Authorization: "Bearer " + token },
+        })
+          .then((res) => res.json())
+          .then((groups) => {
+            // Exclude current user's group
+            const filtered = groups.filter((g) => g.id != userGroupId);
 
-      // Sort by id ascending
-      filtered.sort((a, b) => a.id - b.id);
+            // Sort by id ascending
+            filtered.sort((a, b) => a.id - b.id);
 
-      // Split into columns with 5 rows each
-      const rowsPerColumn = 5; // 5 rows max per column
-      const columns = chunkArray(filtered, rowsPerColumn);
+            // Split into columns with 5 rows each
+            const rowsPerColumn = 5; // 5 rows max per column
+            const columns = chunkArray(filtered, rowsPerColumn);
 
-      const box = document.getElementById("destinationsBox");
-      box.innerHTML = "";
+            const box = document.getElementById("destinationsBox");
+            box.innerHTML = "";
 
-      columns.forEach((col) => {
-        let colHtml = `<div class="col-12 col-sm-6 col-md-2">`; // 5 columns
+            columns.forEach((col) => {
+              let colHtml = `<div class="col-12 col-sm-6 col-md-2">`; // 5 columns
 
-        col.forEach((g) => {
-          colHtml += `
+              col.forEach((g) => {
+                colHtml += `
             <div class="form-check">
               <input class="form-check-input dest-check"
                      type="checkbox"
@@ -201,63 +202,71 @@
               </label>
             </div>
           `;
-        });
+              });
 
-        colHtml += `</div>`;
-        box.innerHTML += colHtml;
-      });
+              colHtml += `</div>`;
+              box.innerHTML += colHtml;
+            });
 
-      updateSelectAll();
-    });
-}
-function loadDraft(id) {
-  fetch(`/api/documents/${id}`, {
-    headers: { Authorization: "Bearer " + token },
-  })
-    .then((res) => res.json())
-    .then((doc) => {
-      document.getElementById("title").value = doc.title;
-      document.getElementById("content").value = doc.content;
-      document.getElementById("doc_num").value = doc.doc_num;
-      document.getElementById("doc_date").value = doc.doc_date;
-      document.getElementById("number_papers").value = doc.number_papers;
-
-      // Normalize destination IDs
-      let selectedIds = [];
-      if (Array.isArray(doc.destinations)) {
-        if (typeof doc.destinations[0] === "object") {
-          selectedIds = doc.destinations.map((d) => d.id);
-        } else {
-          selectedIds = doc.destinations;
-        }
+            updateSelectAll();
+          });
       }
 
-      // Fetch all groups
-      fetch("/api/users/groups", {
-        headers: { Authorization: "Bearer " + token },
-      })
-        .then((res) => res.json())
-        .then((groups) => {
-          // Exclude current user's group
-          const filtered = groups.filter((g) => g.id != userGroupId);
+function authHeaders(extra = {}) {
+  return {
+    Authorization: "Bearer " + token,
+    ...extra
+  };
+}
 
-          // Sort by id ascending
-          filtered.sort((a, b) => a.id - b.id);
+      function loadDraft(id) {
+        fetch(`/api/documents/${id}`, {
+          headers: authHeaders(),
+        })
+          .then((res) => res.json())
+          .then((doc) => {
+            document.getElementById("title").value = doc.title;
+            document.getElementById("content").value = doc.content;
+            document.getElementById("doc_num").value = doc.doc_num;
+            document.getElementById("doc_date").value = doc.doc_date;
+            document.getElementById("number_papers").value = doc.number_papers;
 
-          // Split into columns with 5 rows each
-          const rowsPerColumn = 5;
-          const columns = chunkArray(filtered, rowsPerColumn);
+            // Normalize destination IDs
+            let selectedIds = [];
+            if (Array.isArray(doc.destinations)) {
+              if (typeof doc.destinations[0] === "object") {
+                selectedIds = doc.destinations.map((d) => d.id);
+              } else {
+                selectedIds = doc.destinations;
+              }
+            }
 
-          const box = document.getElementById("destinationsBox");
-          box.innerHTML = "";
+            // Fetch all groups
+            fetch("/api/users/groups", {
+              headers: { Authorization: "Bearer " + token },
+            })
+              .then((res) => res.json())
+              .then((groups) => {
+                // Exclude current user's group
+                const filtered = groups.filter((g) => g.id != userGroupId);
 
-          columns.forEach((col) => {
-            let colHtml = `<div class="col-12 col-sm-6 col-md-2">`; // 5 columns
+                // Sort by id ascending
+                filtered.sort((a, b) => a.id - b.id);
 
-            col.forEach((g) => {
-              const isChecked = selectedIds.includes(g.id);
+                // Split into columns with 5 rows each
+                const rowsPerColumn = 5;
+                const columns = chunkArray(filtered, rowsPerColumn);
 
-              colHtml += `
+                const box = document.getElementById("destinationsBox");
+                box.innerHTML = "";
+
+                columns.forEach((col) => {
+                  let colHtml = `<div class="col-12 col-sm-6 col-md-2">`; // 5 columns
+
+                  col.forEach((g) => {
+                    const isChecked = selectedIds.includes(g.id);
+
+                    colHtml += `
                 <div class="form-check">
                   <input class="form-check-input dest-check"
                          type="checkbox"
@@ -269,25 +278,26 @@ function loadDraft(id) {
                   </label>
                 </div>
               `;
-            });
+                  });
 
-            colHtml += `</div>`;
-            box.innerHTML += colHtml;
+                  colHtml += `</div>`;
+                  box.innerHTML += colHtml;
+                });
+
+                updateSelectAll();
+              });
           });
+      }
 
-          updateSelectAll();
-        });
-    });
-}
-     
-
-      document.getElementById("docForm")
+      document
+        .getElementById("docForm")
         .addEventListener("submit", async (e) => {
           e.preventDefault();
           const title = document.getElementById("title").value.trim();
           const content = document.getElementById("content").value.trim();
           const doc_num = document.getElementById("doc_num").value.trim();
           const doc_date = document.getElementById("doc_date").value.trim();
+          
           const number_papers = document
             .getElementById("number_papers")
             .value.trim();
@@ -296,26 +306,47 @@ function loadDraft(id) {
             document.querySelectorAll(".dest-check:checked")
           ).map((ch) => ch.value);
 
+          // const payload = {
+          //   title,
+          //   content,
+          //   doc_num,
+          //   doc_date,
+          //   number_papers,
+          //   destinations,
+          //   doc_file,
+          // };
+          
+          const formData = new FormData();
+          formData.append("id",docId);
+          formData.append("title",title);
+           formData.append("content",content);
+            formData.append("doc_num",doc_num);
+             formData.append("doc_date",doc_date);
+              formData.append("number_papers",number_papers);
+               formData.append("destinations",destinations);
+
+               const fileInput = document.getElementById("attachment");
+               const file = fileInput.files[0]; // may be null
+               formData.append("attachment",file);
+       
+              //  if (docId) 
+              //  {
+              //    formData.append("id",docId);
+              //  // payload.id = docId; // include id if editing
+              //  }
+
           // const fileInput = document.getElementById("attachment");
           // const file = fileInput.files[0]; // may be null
-          const payload = {
-            title,
-            content,
-            doc_num,
-            doc_date,
-            number_papers,
-            destinations,
-          };
-
-          if (docId) payload.id = docId; // include id if editing
-
+          // if (file) {
+          //   // const formData = new FormData();
+          //    formData.append("doc_file", file);
+          //   //payload.doc_file = file;
+          // }
+          console.log(formData);
           const res = await fetch("/api/documents/save", {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: "Bearer " + token,
-            },
-            body: JSON.stringify(payload),
+            headers:  authHeaders(),    
+            body: formData,    
           });
 
           const msg = await res.json();
@@ -327,18 +358,14 @@ function loadDraft(id) {
           }
 
           // 2️⃣ Upload file only after document is created
-          if (file) {
-            const formData = new FormData();
-            formData.append("file", file);
 
-            await fetch(`/api/documents/upload/${msg.document_id}`, {
-              method: "POST",
-              headers: {
-                Authorization: "Bearer " + token,
-              },
-              body: formData,
-            });
-          }
+          // await fetch(`/api/documents/upload/${msg.document_id}`, {
+          //   method: "POST",
+          //   headers: {
+          //     Authorization: "Bearer " + token,
+          //   },
+          //   body: formData,
+          // });
         });
 
       function show(id, text) {
