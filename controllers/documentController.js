@@ -231,7 +231,7 @@ module.exports = {
     const fileData = result.recordset[0].doc_file;
     const ext = result.recordset[0].doc_ext || ".bin";
     const fileName = (result.recordset[0].doc_num || "document") + ext;
-
+    console.log("Serving file:", fileName);
     res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
     res.setHeader("Content-Type", "application/octet-stream");
     res.send(fileData);
@@ -248,7 +248,20 @@ module.exports = {
       const { start, end } = req.query;
 
       let query = `
-            SELECT *
+            SELECT [id]
+      ,[doc_num]
+      ,[doc_date]
+      ,[number_papers]
+      ,[title]
+      ,[content]
+      ,[sender_id]
+      ,[created_at]
+      ,[is_sent]
+      ,[sent_at]
+      ,[admin_view]
+      ,[admin_view_date]
+      ,[is_received]
+      ,[received_date]
             FROM documents 
             WHERE sender_id=@sender_id AND is_sent=0
         `;
@@ -256,7 +269,7 @@ module.exports = {
       if (start) query += " AND created_at >= @start";
       if (end) query += " AND created_at <= @end";
 
-      query += " ORDER BY created_at DESC";
+      query += " ORDER BY  id DESC";
 
       const request = pool.request().input("sender_id", senderId);
       if (start) request.input("start", start);
@@ -516,36 +529,6 @@ module.exports = {
       res.status(500).json({ message: "Server error", error: err.message });
     }
   },
-
-  //   async uploadFile(req, res) {
-  //   try {
-  //     if (!req.file) {
-  //       return res.status(400).json({ message: "No file uploaded" });
-  //     }
-
-  //     const pool = await getPool();
-  //     const docId = req.params.id;
-
-  //     const fileName = req.file.filename;
-  //     const fileExt = path.extname(req.file.originalname);
-
-  //     await pool
-  //       .request()
-  //       .input("id", docId)
-  //       .input("file", fileName)
-  //       .input("ext", fileExt)
-  //       .query(`
-  //         UPDATE documents
-  //         SET doc_file = @file, doc_ext = @ext
-  //         WHERE id = @id
-  //       `);
-
-  //     return res.json({ message: "File uploaded", file: fileName });
-  //   } catch (err) {
-  //     console.error(err);
-  //     res.status(500).json({ message: "Server error uploading file" });
-  //   }
-  // },
 
   // Generate PDF report for sent documents (returns attachment)
   async generateSentReportPdf(req, res) {
