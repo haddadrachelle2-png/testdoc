@@ -102,8 +102,10 @@
             accept="*/*"
           />
           <!-- If file exists -->
-<a v-if="draft.fileUrl" :href="draft.fileUrl" target="_blank">
-  View existing file
+<!-- <a v-if="draft.fileUrl" :href="draft.fileUrl" target="_blank"> -->
+  <!-- View existing file -->
+
+  <div id="existingFile"></div>
 </a>
         </div>
         <div class="mb-3">
@@ -217,13 +219,80 @@
           });
       }
 
+//      function previewFile(url) {
+//   const previewBox = document.getElementById("filePreview");
+
+//   fetch(url)
+//     .then(async (res) => {
+//       const contentType = res.headers.get("Content-Type");
+
+//       // PDF
+//       if (contentType.includes("pdf")) {
+//         previewBox.innerHTML = `
+//           <iframe src="${url}" style="width:100%; height:500px;" class="border"></iframe>
+//         `;
+//         return;
+//       }
+
+//       // Images
+//       if (contentType.startsWith("image/")) {
+//         previewBox.innerHTML = `
+//           <img src="${url}" class="img-fluid border" style="max-height:400px">
+//         `;
+//         return;
+//       }
+
+//       // Text
+//       if (contentType.includes("text") || contentType.includes("json")) {
+//         const text = await res.text();
+//         previewBox.innerHTML = `
+//           <pre class="border p-3" style="white-space:pre-wrap; max-height:400px; overflow:auto;">
+//             ${text}
+//           </pre>
+//         `;
+//         return;
+//       }
+
+//       // Everything else
+//       previewBox.innerHTML = `
+//         <div class="alert alert-warning">
+//           لا يمكن عرض هذا النوع من الملفات.
+//           <a class="ms-2" href="${url}" target="_blank">فتح الملف</a>
+//         </div>
+//       `;
+//     })
+//     .catch(err => {
+//       previewBox.innerHTML = `
+//         <div class="alert alert-danger">خطأ أثناء تحميل الملف.</div>
+//       `;
+//       console.error(err);
+//     });
+// }
+
 function authHeaders(extra = {}) {
   return {
     Authorization: "Bearer " + token,
     ...extra
   };
 }
+function openFile(id) {
+  const token = localStorage.getItem("token"); // your auth token
 
+  fetch(`/api/documents/${id}/file`, {
+    headers: {
+      "Authorization": "Bearer " + token
+    }
+  })
+    .then(res => res.blob())
+    .then(blob => {
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    })
+    .catch(err => {
+      alert("خطأ أثناء تحميل الملف");
+      console.error(err);
+    });
+}
       function loadDraft(id) {
         fetch(`/api/documents/${id}`, {
           headers: authHeaders(),
@@ -236,6 +305,20 @@ function authHeaders(extra = {}) {
             document.getElementById("doc_date").value = doc.doc_date;
             document.getElementById("number_papers").value = doc.number_papers;
 
+            // ✅ Display existing file
+ if (doc.fileUrl) {
+  document.getElementById("existingFile").innerHTML = `
+    <button type="button" class="btn btn-info mt-2" onclick="openFile('${doc.id}')">
+  عرض الملف الحالي
+</button>
+
+    
+  `;
+}
+// <button type="button" class="btn btn-secondary mt-2 ms-2"
+//       onclick="previewFile('${doc.fileUrl}')">
+//       معاينة المحتوى
+//     </button>
             // Normalize destination IDs
             let selectedIds = [];
             if (Array.isArray(doc.destinations)) {
@@ -334,19 +417,7 @@ function authHeaders(extra = {}) {
                const file = fileInput.files[0]; // may be null
                formData.append("attachment",file);
        
-              //  if (docId) 
-              //  {
-              //    formData.append("id",docId);
-              //  // payload.id = docId; // include id if editing
-              //  }
-
-          // const fileInput = document.getElementById("attachment");
-          // const file = fileInput.files[0]; // may be null
-          // if (file) {
-          //   // const formData = new FormData();
-          //    formData.append("doc_file", file);
-          //   //payload.doc_file = file;
-          // }
+             
           console.log(formData);
           const res = await fetch("/api/documents/save", {
             method: "POST",
@@ -362,15 +433,7 @@ function authHeaders(extra = {}) {
             if (!docId) document.getElementById("docForm").reset();
           }
 
-          // 2️⃣ Upload file only after document is created
-
-          // await fetch(`/api/documents/upload/${msg.document_id}`, {
-          //   method: "POST",
-          //   headers: {
-          //     Authorization: "Bearer " + token,
-          //   },
-          //   body: formData,
-          // });
+        
         });
 
       function show(id, text) {

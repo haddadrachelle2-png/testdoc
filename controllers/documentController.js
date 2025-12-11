@@ -185,12 +185,7 @@ module.exports = {
       const document = docResult.recordset[0];
       if (document.doc_date) 
         document.doc_date = document.doc_date.toISOString().split("T")[0];
-        // if (!document.doc_file) {
-        //   return res
-        //     .status(404)
-        //     .json({ message: "No file attached to this document" });
-        // }
-       
+      
       // Fetch destinations
       const destResult = await pool
         .request()
@@ -200,7 +195,7 @@ module.exports = {
         );
 
       const destinations = destResult.recordset.map((r) => r.group_id);
-// Return JSON with file info
+     // Return JSON with file info
     res.json({
       ...document,
       destinations,
