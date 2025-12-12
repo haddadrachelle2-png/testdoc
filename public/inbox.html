@@ -79,11 +79,11 @@ async function loadInbox() {
 
     inbox.forEach(async (d) => {
         // Fetch destination names for this document
-        const destRes = await fetch(`/api/documents/${d.id}/destinations`, {
-            headers: { "Authorization": "Bearer " + token }
-        });
-        const dests = await destRes.json();
-        const destNames = dests.map(dest => dest.name).join(", ");
+       // const destRes = await fetch(`/api/documents/${d.id}/destinations`, {
+         //   headers: { "Authorization": "Bearer " + token }
+       // });
+        // const dests = await destRes.json();
+        // const destNames = dests.map(dest => dest.name).join(", ");
 
         inboxTable.innerHTML += `
             <tr>
@@ -92,7 +92,7 @@ async function loadInbox() {
                 <td>${d.content}</td>
                 <td>${new Date(d.created_at).toLocaleString()}</td>
                 <td>${d.senderName}</td>
-                <td>${destNames || "N/A"}</td>
+                <td>${d.destinations || "N/A"}</td>
                 <td>${d.is_received || d.is_admin_group ? "Approved" : "Pending"}</td>
                 
                 <td>
@@ -102,12 +102,6 @@ async function loadInbox() {
         `;
     });
 }
-// <td>
-//                     <span class="badge ${d.status === 'pending' ? 'bg-warning' : 'bg-success'}">
-//                         ${d.status}
-//                     </span>
-// </td>
-
 
 // Search
 document.getElementById("searchBtn").addEventListener("click", loadInbox);

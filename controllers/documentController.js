@@ -147,10 +147,34 @@ module.exports = {
       const pool = await getPool();
       const result = await pool.request().input("sender_id", req.user.id)
         .query(`
-                    SELECT id, title, content, doc_num, doc_date, number_papers, created_at 
-                    FROM documents 
-                    WHERE sender_id=@sender_id AND is_sent=0
-                    ORDER BY created_at DESC
+                    SELECT 
+    d.id,
+    d.doc_num,
+    d.doc_date,
+    d.number_papers,
+    d.title,
+    d.content,
+    d.sender_id,
+    d.created_at,
+    d.is_sent,
+    d.sent_at,
+    d.admin_view,
+    d.admin_view_date,
+    d.is_received,
+    d.received_date,
+    (
+        SELECT STUFF((
+            SELECT ', ' + g.name
+            FROM document_destinations dd
+            JOIN groups g ON g.id = dd.group_id
+            WHERE dd.document_id = d.id
+            FOR XML PATH(''), TYPE
+        ).value('.', 'NVARCHAR(MAX)'), 1, 2, '')
+    ) AS destinations
+FROM documents d
+WHERE d.sender_id = @sender_id
+AND d.is_sent = 0
+ORDER BY d.id DESC
                 `);
       res.json(result.recordset);
     } catch (err) {
@@ -172,10 +196,37 @@ module.exports = {
         .request()
         .input("id", docId)
         .input("sender_id", userId).query(`
-                    SELECT id, title, content ,doc_num,doc_date,number_papers,
-                    CASE WHEN doc_file IS NOT NULL THEN 1 ELSE 0 END AS has_file,doc_ext
-                    FROM documents 
-                    WHERE id=@id AND sender_id=@sender_id AND is_sent=0
+                    SELECT 
+                    CASE WHEN d.doc_file IS NOT NULL THEN 1 ELSE 0 END AS has_file,d.doc_ext,
+                    
+    d.id,
+    d.doc_num,
+    d.doc_date,
+    d.number_papers,
+    d.title,
+    d.content,
+    d.sender_id,
+    d.created_at,
+    d.is_sent,
+    d.sent_at,
+    d.admin_view,
+    d.admin_view_date,
+    d.is_received,
+    d.received_date,
+    (
+        SELECT STUFF((
+            SELECT ', ' + g.name
+            FROM document_destinations dd
+            JOIN groups g ON g.id = dd.group_id
+            WHERE dd.document_id = d.id
+            FOR XML PATH(''), TYPE
+        ).value('.', 'NVARCHAR(MAX)'), 1, 2, '')
+    ) AS destinations
+FROM documents d
+WHERE d.id=@id AND sender_id = @sender_id
+AND d.is_sent = 0
+ORDER BY d.id DESC
+                    
                 `);
 
       if (!docResult.recordset.length) {
@@ -183,9 +234,9 @@ module.exports = {
       }
 
       const document = docResult.recordset[0];
-      if (document.doc_date) 
+      if (document.doc_date)
         document.doc_date = document.doc_date.toISOString().split("T")[0];
-      
+
       // Fetch destinations
       const destResult = await pool
         .request()
@@ -195,12 +246,12 @@ module.exports = {
         );
 
       const destinations = destResult.recordset.map((r) => r.group_id);
-     // Return JSON with file info
-    res.json({
-      ...document,
-      destinations,
-      fileUrl: document.has_file ? `/api/documents/${docId}/file` : null
-    });
+      // Return JSON with file info
+      res.json({
+        ...document,
+        destinations,
+        fileUrl: document.has_file ? `/api/documents/${docId}/file` : null,
+      });
       // res.json({ ...document, destinations });
     } catch (err) {
       console.error(err);
@@ -209,37 +260,36 @@ module.exports = {
   },
 
   async getDraftFile(req, res) {
-  const docId = req.params.id;
-  const userId = req.user.id;
+    const docId = req.params.id;
+    const userId = req.user.id;
 
-  try {
-    const pool = await getPool();
-    const result = await pool
-      .request()
-      .input("id", docId)
-      .input("sender_id", userId)
-      .query(`
+    try {
+      const pool = await getPool();
+      const result = await pool
+        .request()
+        .input("id", docId)
+        .input("sender_id", userId).query(`
         SELECT doc_file, doc_ext, doc_num
         FROM documents
         WHERE id=@id AND sender_id=@sender_id AND is_sent=0
       `);
 
-    if (!result.recordset.length || !result.recordset[0].doc_file) {
-      return res.status(404).json({ message: "No file attached" });
-    }
+      if (!result.recordset.length || !result.recordset[0].doc_file) {
+        return res.status(404).json({ message: "No file attached" });
+      }
 
-    const fileData = result.recordset[0].doc_file;
-    const ext = result.recordset[0].doc_ext || ".bin";
-    const fileName = (result.recordset[0].doc_num || "document") + ext;
-    console.log("Serving file:", fileName);
-    res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
-    res.setHeader("Content-Type", "application/octet-stream");
-    res.send(fileData);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
-  }
-},
+      const fileData = result.recordset[0].doc_file;
+      const ext = result.recordset[0].doc_ext || ".bin";
+      const fileName = (result.recordset[0].doc_num || "document") + ext;
+      console.log("Serving file:", fileName);
+      res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
+      res.setHeader("Content-Type", "application/octet-stream");
+      res.send(fileData);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Server error" });
+    }
+  },
   // GET /api/documents/drafts?start=YYYY-MM-DD&end=YYYY-MM-DD
   async getDraftsByDate(req, res) {
     try {
@@ -248,28 +298,40 @@ module.exports = {
       const { start, end } = req.query;
 
       let query = `
-            SELECT [id]
-      ,[doc_num]
-      ,[doc_date]
-      ,[number_papers]
-      ,[title]
-      ,[content]
-      ,[sender_id]
-      ,[created_at]
-      ,[is_sent]
-      ,[sent_at]
-      ,[admin_view]
-      ,[admin_view_date]
-      ,[is_received]
-      ,[received_date]
-            FROM documents 
-            WHERE sender_id=@sender_id AND is_sent=0
+            SELECT 
+    d.id,
+    d.doc_num,
+    d.doc_date,
+    d.number_papers,
+    d.title,
+    d.content,
+    d.sender_id,
+    d.created_at,
+    d.is_sent,
+    d.sent_at,
+    d.admin_view,
+    d.admin_view_date,
+    d.is_received,
+    d.received_date,
+    (
+        SELECT STUFF((
+            SELECT ', ' + g.name
+            FROM document_destinations dd
+            JOIN groups g ON g.id = dd.group_id
+            WHERE dd.document_id = d.id
+            FOR XML PATH(''), TYPE
+        ).value('.', 'NVARCHAR(MAX)'), 1, 2, '')
+    ) AS destinations
+FROM documents d
+WHERE d.sender_id = @sender_id
+AND d.is_sent = 0
+
         `;
 
-      if (start) query += " AND created_at >= @start";
-      if (end) query += " AND created_at <= @end";
+      if (start) query += " AND d.created_at >= @start";
+      if (end) query += " AND d.created_at <= @end";
 
-      query += " ORDER BY  id DESC";
+      query += " ORDER BY  d.id DESC";
 
       const request = pool.request().input("sender_id", senderId);
       if (start) request.input("start", start);
@@ -372,7 +434,16 @@ module.exports = {
       const userGroupId = req.user.group_id;
       const is_admin_group = req.user.is_admin_group;
       let query = `
-      SELECT     d.id, d.title, d.[content], d.created_at, d.sender_id, g.name AS senderName, d.sent_at, d.is_received, g.is_admin_group
+      SELECT     d.id, d.title, d.[content], d.created_at, d.sender_id, g.name AS senderName,
+       (
+        SELECT STUFF((
+            SELECT ', ' + g.name
+            FROM document_destinations dd
+            JOIN groups g ON g.id = dd.group_id
+            WHERE dd.document_id = d.id
+            FOR XML PATH(''), TYPE
+        ).value('.', 'NVARCHAR(MAX)'), 1, 2, '')
+    ) AS destinations, d.sent_at, d.is_received, g.is_admin_group
      FROM         dbo.documents AS d INNER JOIN
      dbo.users AS u ON u.id = d.sender_id INNER JOIN
       dbo.groups AS g ON u.group_id = g.id 

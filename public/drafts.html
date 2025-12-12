@@ -83,11 +83,11 @@
         draftTable.innerHTML = "";
         drafts.forEach(async (d) => {
         // Fetch destination names for this document
-        const destRes = await fetch(`/api/documents/${d.id}/destinations`, {
-            headers: { "Authorization": "Bearer " + token }
-        });
-        const dests = await destRes.json();
-        const destNames = dests.map(dest => dest.name).join(", ");
+        // const destRes = await fetch(`/api/documents/${d.id}/destinations`, {
+        //     headers: { "Authorization": "Bearer " + token }
+        // });
+        // const dests = await destRes.json();
+        // const destNames = dests.map(dest => dest.name).join(", ");
           draftTable.innerHTML += `
             <tr>
                 <td><input type="checkbox" class="draftCheckbox" value="${
@@ -97,7 +97,7 @@
                 <td>${d.doc_num}</td>
                 <td>${new Date(d.doc_date).toLocaleString()}</td>
                 <td>${d.number_papers}</td>
-                <td>${destNames || "N/A"}</td>
+                <td>${d.destinations || "N/A"}</td>
        
                 <td>
                     ${
