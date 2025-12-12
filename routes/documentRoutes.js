@@ -27,7 +27,7 @@ router.post('/send', auth, documentController.sendDrafts);
 router.post('/approve-bulk', auth, adminOnly, documentController.approveBulk);
 router.post("/approve/:id", auth, adminOnly, documentController.approvedocument);
 
-router.post("/markseen", auth,adminOnly, documentController.set_mark_selected);
+router.post("/markseen", auth, documentController.set_mark_selected);
 
 // ✅ Get all drafts, optional filter by start/end date
 // Example: /api/documents/drafts?start=2025-11-01&end=2025-11-25

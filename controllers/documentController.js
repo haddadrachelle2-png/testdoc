@@ -387,13 +387,21 @@ AND d.is_sent = 0
       //  const { start, end } = req.query;
 
       let query = `
-            SELECT id, title, created_at, sent_at
-            FROM documents
+            SELECT d.id, d.title, d.created_at, d.sent_at, (
+        SELECT STUFF((
+            SELECT ', ' + g.name
+            FROM document_destinations dd
+            JOIN groups g ON g.id = dd.group_id
+            WHERE dd.document_id = d.id
+            FOR XML PATH(''), TYPE
+        ).value('.', 'NVARCHAR(MAX)'), 1, 2, '')
+    ) AS destinations
+            FROM documents d
             WHERE sender_id=@sender_id AND is_sent=1
         `;
       // if (start) query += " AND sent_at >= @start";
       // if (end) query += " AND sent_at <= @end";
-      query += " ORDER BY sent_at DESC";
+      query += " ORDER BY d.sent_at DESC";
 
       const request = pool.request().input("sender_id", senderId);
       // if (start) request.input("start", start);

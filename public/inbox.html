@@ -87,7 +87,7 @@ async function loadInbox() {
 
         inboxTable.innerHTML += `
             <tr>
-                <td><input type="checkbox" class="inboxCheckbox" value="${d.id}" ${d.is_received || d.is_admin_group ? "disabled" : ""}></td>
+                <td><input type="checkbox" class="inboxCheckbox" value="${d.id}" ${d.is_received  ? "disabled" : ""}></td>
                 <td>${d.title}</td>
                 <td>${d.content}</td>
                 <td>${new Date(d.created_at).toLocaleString()}</td>
