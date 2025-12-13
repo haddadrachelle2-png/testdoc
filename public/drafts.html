@@ -8,6 +8,25 @@
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css"
       rel="stylesheet"
     />
+
+    <style>
+      #pagination button {
+        padding: 6px 12px;
+        margin: 0 5px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+
+      #pagination button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      #page-info {
+        font-weight: bold;
+        margin: 0 10px;
+      }
+    </style>
   </head>
   <body class="p-4">
     <div class="container">
@@ -54,76 +73,133 @@
         </thead>
         <tbody id="draftTable"></tbody>
       </table>
-
-      <!-- <a href="index.html" class="btn btn-secondary mt-3">⬅ العودة إلى لوحة التحكم</a> -->
     </div>
+    <div id="drafts-container"></div>
 
+    <div id="pagination" style="text-align: center; margin-top: 20px">
+      <button id="prev-btn">السابق</button>
+      <span
+        >صفحة
+        <input
+          type="number"
+          id="page-input"
+          style="width: 50px; text-align: center"
+          min="1"
+        />
+        من <span id="total-pages">1</span></span
+      >
+      <button id="next-btn">التالي</button>
+    </div>
     <script>
       const token = localStorage.getItem("token");
       if (!token) location.href = "login.html";
 
       const draftTable = document.getElementById("draftTable");
+      const prevBtn = document.getElementById("prev-btn");
+      const nextBtn = document.getElementById("next-btn");
+      const pageInput = document.getElementById("page-input");
+      const totalPagesSpan = document.getElementById("total-pages");
 
-      // Load drafts with optional date filter
-      async function loadDrafts() {
+      let currentPage = 1;
+      let totalPages = 1;
+
+      // -------------------------
+      // LOAD DRAFTS FUNCTION
+      // -------------------------
+      async function loadDrafts(page = 1) {
         const start = document.getElementById("startDate").value;
         const end = document.getElementById("endDate").value;
 
-        let url = `/api/documents/drafts`;
+        let url = `/api/documents/drafts?page=${page}`;
         const params = [];
         if (start) params.push(`start=${start}`);
         if (end) params.push(`end=${end}`);
-        if (params.length) url += "?" + params.join("&");
+        if (params.length) url += "&" + params.join("&");
 
         const res = await fetch(url, {
           headers: { Authorization: "Bearer " + token },
         });
-        const drafts = await res.json();
 
+        const drafts = await res.json();
         draftTable.innerHTML = "";
-        drafts.forEach(async (d) => {
-        // Fetch destination names for this document
-        // const destRes = await fetch(`/api/documents/${d.id}/destinations`, {
-        //     headers: { "Authorization": "Bearer " + token }
-        // });
-        // const dests = await destRes.json();
-        // const destNames = dests.map(dest => dest.name).join(", ");
+
+        // No data
+        if (!drafts.data || drafts.data.length === 0) {
+          draftTable.innerHTML = `
+      <tr><td colspan="7" class="text-center">لا توجد مسودات</td></tr>
+    `;
+          prevBtn.disabled = true;
+          nextBtn.disabled = true;
+          pageInput.value = 1;
+          totalPagesSpan.textContent = 1;
+          return;
+        }
+
+        // Fill table
+        drafts.data.forEach((d) => {
           draftTable.innerHTML += `
-            <tr>
-                <td><input type="checkbox" class="draftCheckbox" value="${
-                  d.id
-                }" ${d.is_sent ? "disabled" : ""}></td>
-                <td>${d.title}</td>
-                <td>${d.doc_num}</td>
-                <td>${new Date(d.doc_date).toLocaleString()}</td>
-                <td>${d.number_papers}</td>
-                <td>${d.destinations || "N/A"}</td>
-       
-                <td>
-                    ${
-                      d.is_sent
-                        ? ""
-                        : `<a href="create-document.html?id=${d.id}" class="btn btn-sm btn-primary">تعديل</a>`
-                    }
-                </td>
-            </tr>
-        `;
+      <tr>
+        <td><input type="checkbox" class="draftCheckbox" value="${d.id}" ${
+            d.is_sent ? "disabled" : ""
+          }></td>
+        <td>${d.title}</td>
+        <td>${d.doc_num}</td>
+        <td>${
+          d.doc_date ? new Date(d.doc_date).toLocaleDateString() : "N/A"
+        }</td>
+        <td>${d.number_papers}</td>
+        <td>${d.destinations || "N/A"}</td>
+        <td>
+          ${
+            d.is_sent
+              ? ""
+              : `<a href="create-document.html?id=${d.id}" class="btn btn-sm btn-primary">تعديل</a>`
+          }
+        </td>
+      </tr>
+    `;
         });
+
+        // Update pagination
+        currentPage = drafts.page || 1;
+        totalPages = drafts.total_pages || 1;
+
+        pageInput.value = currentPage;
+        totalPagesSpan.textContent = totalPages;
+
+        prevBtn.disabled = currentPage <= 1;
+        nextBtn.disabled = currentPage >= totalPages;
       }
 
-      // Search button
-      document
-        .getElementById("searchBtn")
-        .addEventListener("click", loadDrafts);
-
-      // Select All checkbox
-      document.getElementById("selectAll").addEventListener("change", (e) => {
-        document.querySelectorAll(".draftCheckbox").forEach((cb) => {
-          if (!cb.disabled) cb.checked = e.target.checked;
-        });
+      // -------------------------
+      // BUTTON EVENTS
+      // -------------------------
+      prevBtn.addEventListener("click", () => {
+        if (currentPage > 1) loadDrafts(currentPage - 1);
       });
 
-      // Send selected drafts
+      nextBtn.addEventListener("click", () => {
+        if (currentPage < totalPages) loadDrafts(currentPage + 1);
+      });
+
+      // -------------------------
+      // TEXTBOX PAGE INPUT (no button)
+      // -------------------------
+      pageInput.addEventListener("change", () => {
+        let page = parseInt(pageInput.value);
+
+        if (isNaN(page) || page < 1) page = 1;
+        if (page > totalPages) page = totalPages;
+
+        loadDrafts(page);
+      });
+
+      // Search button resets to page 1
+      document.getElementById("searchBtn").addEventListener("click", () => {
+        loadDrafts(1);
+      });
+
+         // Send selected drafts
       document.getElementById("sendBtn").addEventListener("click", async () => {
         const selected = Array.from(
           document.querySelectorAll(".draftCheckbox:checked")
@@ -150,7 +226,7 @@
           loadDrafts();
         }
       });
-
+      
       // Initial load
       loadDrafts();
     </script>

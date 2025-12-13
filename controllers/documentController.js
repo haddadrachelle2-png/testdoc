@@ -12,6 +12,15 @@ const storage = multer.diskStorage({
   },
 });
 
+async function getPagingNumber(pool) {
+  try {
+    const result = await pool.request().query("SELECT paging_nb FROM config");
+    return parseInt(result.recordset[0].paging_nb) || 10;
+  } catch (err) {
+    console.error("getPagingNumber error:", err);
+    return 10; // fallback
+  }
+}
 module.exports = {
   // Create a new document
   async create(req, res) {
@@ -141,47 +150,67 @@ module.exports = {
       res.status(500).json({ message: "Server error", error: err.message });
     }
   },
-  // Get all drafts (not sent) for logged-in user
-  async getDrafts(req, res) {
-    try {
-      const pool = await getPool();
-      const result = await pool.request().input("sender_id", req.user.id)
-        .query(`
-                    SELECT 
-    d.id,
-    d.doc_num,
-    d.doc_date,
-    d.number_papers,
-    d.title,
-    d.content,
-    d.sender_id,
-    d.created_at,
-    d.is_sent,
-    d.sent_at,
-    d.admin_view,
-    d.admin_view_date,
-    d.is_received,
-    d.received_date,
-    (
-        SELECT STUFF((
-            SELECT ', ' + g.name
-            FROM document_destinations dd
-            JOIN groups g ON g.id = dd.group_id
-            WHERE dd.document_id = d.id
-            FOR XML PATH(''), TYPE
-        ).value('.', 'NVARCHAR(MAX)'), 1, 2, '')
-    ) AS destinations
-FROM documents d
-WHERE d.sender_id = @sender_id
-AND d.is_sent = 0
-ORDER BY d.id DESC
-                `);
-      res.json(result.recordset);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Server error" });
-    }
-  },
+
+  //   // Get all drafts (not sent) for logged-in user
+  //   async getDrafts(req, res) {
+  //     try {
+  //       const pool = await getPool();
+  //       const page = parseInt(req.query.page) || 1;
+
+  //       const paging_nb = await getPagingNumber(pool);
+  //       const offset = (page - 1) * paging_nb;
+
+  //       const [rows] = await pool.request().input("sender_id", req.user.id)
+  //         .query(`
+  //                     SELECT
+  //     d.id,
+  //     d.doc_num,
+  //     d.doc_date,
+  //     d.number_papers,
+  //     d.title,
+  //     d.content,
+  //     d.sender_id,
+  //     d.created_at,
+  //     d.is_sent,
+  //     d.sent_at,
+  //     d.admin_view,
+  //     d.admin_view_date,
+  //     d.is_received,
+  //     d.received_date,
+  //     (
+  //         SELECT STUFF((
+  //             SELECT ', ' + g.name
+  //             FROM document_destinations dd
+  //             JOIN groups g ON g.id = dd.group_id
+  //             WHERE dd.document_id = d.id
+  //             FOR XML PATH(''), TYPE
+  //         ).value('.', 'NVARCHAR(MAX)'), 1, 2, '')
+  //     ) AS destinations
+  // FROM documents d
+  // WHERE d.sender_id = @sender_id
+  // AND d.is_sent = 0
+  // ORDER BY d.id DESC LIMIT ? OFFSET ?",
+  //     [paging_nb, offset]
+  //                 `);
+
+  //       // count total for pagination
+  //       const [count] = await pool.query(
+  //         "SELECT COUNT(*) AS total FROM documents WHERE sender_id = @sender_id AND is_sent = 0"
+  //       );
+  //       res.json({
+  //         data: rows,
+  //         page,
+  //         per_page: paging_nb,
+  //         total: count[0].total,
+  //         total_pages: Math.ceil(count[0].total / paging_nb),
+  //       });
+
+  //       // res.json(result.recordset);
+  //     } catch (err) {
+  //       console.error(err);
+  //       res.status(500).json({ message: "Server error" });
+  //     }
+  //   },
 
   // Get a single draft by ID (with destinations)
   async getDraftById(req, res) {
@@ -290,58 +319,91 @@ ORDER BY d.id DESC
       res.status(500).json({ message: "Server error" });
     }
   },
+
   // GET /api/documents/drafts?start=YYYY-MM-DD&end=YYYY-MM-DD
+  // GET /api/documents/drafts?start=YYYY-MM-DD&end=YYYY-MM-DD&page=1
   async getDraftsByDate(req, res) {
     try {
       const pool = await getPool();
       const senderId = req.user.id;
+
+      const page = parseInt(req.query.page) || 1;
+      const paging_nb = await getPagingNumber(pool); // make sure you use `this.getPagingNumber`
+      const offset = (page - 1) * paging_nb;
+
       const { start, end } = req.query;
 
-      let query = `
-            SELECT 
-    d.id,
-    d.doc_num,
-    d.doc_date,
-    d.number_papers,
-    d.title,
-    d.content,
-    d.sender_id,
-    d.created_at,
-    d.is_sent,
-    d.sent_at,
-    d.admin_view,
-    d.admin_view_date,
-    d.is_received,
-    d.received_date,
-    (
-        SELECT STUFF((
-            SELECT ', ' + g.name
-            FROM document_destinations dd
-            JOIN groups g ON g.id = dd.group_id
-            WHERE dd.document_id = d.id
-            FOR XML PATH(''), TYPE
-        ).value('.', 'NVARCHAR(MAX)'), 1, 2, '')
-    ) AS destinations
-FROM documents d
-WHERE d.sender_id = @sender_id
-AND d.is_sent = 0
+      // Build filter for dates
+      let filter = `WHERE d.sender_id = @sender_id AND d.is_sent = 0`;
+      if (start) filter += " AND d.created_at >= @start";
+      if (end) filter += " AND d.created_at <= @end";
 
-        `;
+      // Use ROW_NUMBER() for pagination
+      const query = `
+      SELECT *
+      FROM (
+        SELECT 
+          d.id,
+          d.doc_num,
+          d.doc_date,
+          d.number_papers,
+          d.title,
+          d.content,
+          d.sender_id,
+          d.created_at,
+          d.is_sent,
+          d.sent_at,
+          d.admin_view,
+          d.admin_view_date,
+          d.is_received,
+          d.received_date,
+          (
+            SELECT STUFF((
+              SELECT ', ' + g.name
+              FROM document_destinations dd
+              JOIN groups g ON g.id = dd.group_id
+              WHERE dd.document_id = d.id
+              FOR XML PATH(''), TYPE
+            ).value('.', 'NVARCHAR(MAX)'), 1, 2, '')
+          ) AS destinations,
+          ROW_NUMBER() OVER (ORDER BY d.id DESC) AS rn
+        FROM documents d
+        ${filter}
+      ) AS t
+     WHERE t.rn > @offset AND t.rn <= @maxRow
+      ORDER BY t.rn;
+    `;
 
-      if (start) query += " AND d.created_at >= @start";
-      if (end) query += " AND d.created_at <= @end";
+      const request = pool
+        .request()
+        .input("sender_id", senderId)
+        .input("offset", offset)
+        .input("limit", paging_nb)
+        .input("maxRow", offset + paging_nb);
 
-      query += " ORDER BY  d.id DESC";
-
-      const request = pool.request().input("sender_id", senderId);
       if (start) request.input("start", start);
       if (end) request.input("end", end);
 
       const result = await request.query(query);
-      res.json(result.recordset);
+
+      // Count total for pagination
+      const countQuery = `SELECT COUNT(*) AS total FROM documents d ${filter}`;
+      const countReq = pool.request().input("sender_id", senderId);
+      if (start) countReq.input("start", start);
+      if (end) countReq.input("end", end);
+      const countResult = await countReq.query(countQuery);
+      const total = countResult.recordset[0].total;
+
+      res.json({
+        data: result.recordset,
+        page,
+        per_page: paging_nb,
+        total,
+        total_pages: Math.ceil(total / paging_nb),
+      });
     } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Server error" });
+      console.error("getDraftsByDate error:", err);
+      res.status(500).json({ message: "Server error", error: err.message });
     }
   },
   // POST { draftIds: [1,2,3] }
@@ -380,41 +442,92 @@ AND d.is_sent = 0
   },
 
   // GET /api/documents/sent?start=YYYY-MM-DD&end=YYYY-MM-DD
-  async getSentDocuments(req, res) {
-    try {
-      const pool = await getPool();
-      const senderId = req.user.id;
-      //  const { start, end } = req.query;
+ async getSentDocuments(req, res) {
+  try {
+    const pool = await getPool();
+    const senderId = req.user.id;
 
-      let query = `
-            SELECT d.id, d.title, d.created_at, d.sent_at, (
-        SELECT STUFF((
-            SELECT ', ' + g.name
-            FROM document_destinations dd
-            JOIN groups g ON g.id = dd.group_id
-            WHERE dd.document_id = d.id
-            FOR XML PATH(''), TYPE
-        ).value('.', 'NVARCHAR(MAX)'), 1, 2, '')
-    ) AS destinations
-            FROM documents d
-            WHERE sender_id=@sender_id AND is_sent=1
-        `;
-      // if (start) query += " AND sent_at >= @start";
-      // if (end) query += " AND sent_at <= @end";
-      query += " ORDER BY d.sent_at DESC";
+    const page = parseInt(req.query.page) || 1;
+    const paging_nb = await getPagingNumber(pool);
+    const offset = (page - 1) * paging_nb;
+    const maxRow = offset + paging_nb;
 
-      const request = pool.request().input("sender_id", senderId);
-      // if (start) request.input("start", start);
-      // if (end) request.input("end", end);
+    const { start, end } = req.query;
 
-      const result = await request.query(query);
-      res.json(result.recordset);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Server error" });
-    }
-  },
+    // -------- FILTER --------
+    let filter = `
+      WHERE d.sender_id = @sender_id
+      AND d.is_sent = 1
+    `;
 
+    if (start) filter += " AND d.sent_at >= @start";
+    if (end) filter += " AND d.sent_at <= @end";
+
+    // -------- MAIN QUERY --------
+    const query = `
+      SELECT *
+      FROM (
+        SELECT
+          d.id,
+          d.title,
+          d.created_at,
+          d.sent_at,
+          (
+            SELECT STUFF((
+              SELECT ', ' + g.name
+              FROM document_destinations dd
+              JOIN groups g ON g.id = dd.group_id
+              WHERE dd.document_id = d.id
+              FOR XML PATH(''), TYPE
+            ).value('.', 'NVARCHAR(MAX)'), 1, 2, '')
+          ) AS destinations,
+          ROW_NUMBER() OVER (ORDER BY d.sent_at DESC) AS rn
+        FROM documents d
+        ${filter}
+      ) t
+      WHERE t.rn > @offset AND t.rn <= @maxRow
+      ORDER BY t.rn;
+    `;
+
+    // -------- COUNT QUERY --------
+    const countQuery = `
+      SELECT COUNT(*) AS total
+      FROM documents d
+      ${filter}
+    `;
+
+    // -------- REQUEST --------
+    const request = pool.request()
+      .input("sender_id", senderId)
+      .input("offset", offset)
+      .input("maxRow", maxRow);
+
+    if (start) request.input("start", start);
+    if (end) request.input("end", end);
+
+    const result = await request.query(query);
+
+    const countReq = pool.request().input("sender_id", senderId);
+    if (start) countReq.input("start", start);
+    if (end) countReq.input("end", end);
+
+    const countResult = await countReq.query(countQuery);
+    const total = countResult.recordset[0].total;
+
+    // -------- RESPONSE --------
+    res.json({
+      data: result.recordset,
+      page,
+      per_page: paging_nb,
+      total,
+      total_pages: Math.ceil(total / paging_nb)
+    });
+
+  } catch (err) {
+    console.error("getSentDocuments error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+},
   // GET /api/documents/:id/destinations
   async getDocumentDestinations(req, res) {
     try {
@@ -435,59 +548,114 @@ AND d.is_sent = 0
     }
   },
 
-  // Get all sent from draft for logged-in user
-  async getInbox(req, res) {
-    try {
-      const pool = await getPool();
-      const userGroupId = req.user.group_id;
-      const is_admin_group = req.user.is_admin_group;
-      let query = `
-      SELECT     d.id, d.title, d.[content], d.created_at, d.sender_id, g.name AS senderName,
-       (
-        SELECT STUFF((
-            SELECT ', ' + g.name
-            FROM document_destinations dd
-            JOIN groups g ON g.id = dd.group_id
-            WHERE dd.document_id = d.id
-            FOR XML PATH(''), TYPE
-        ).value('.', 'NVARCHAR(MAX)'), 1, 2, '')
-    ) AS destinations, d.sent_at, d.is_received, g.is_admin_group
-     FROM         dbo.documents AS d INNER JOIN
-     dbo.users AS u ON u.id = d.sender_id INNER JOIN
-      dbo.groups AS g ON u.group_id = g.id 
-       WHERE d.is_sent = 1`;
+  // Get Inbox (sent to this user's group)
+async getInbox(req, res) {
+  try {
+    const pool = await getPool();
 
-      if (is_admin_group) {
-        // Admins see all sent documents across all groups, but exclude documents
-        // created by group-admin users themselves
-        query += ` AND u.is_group_admin = 0`;
-      } else {
-        query += ` AND EXISTS (
-        SELECT 1 FROM document_destinations dd
-        WHERE dd.document_id = d.id AND dd.group_id = @group_id
-      ) AND d.admin_view = 1`;
-      }
+    const page = parseInt(req.query.page) || 1;
+    const paging_nb = await getPagingNumber(pool);
+    const offset = (page - 1) * paging_nb;
+    const maxRow = offset + paging_nb;
 
-      const { start, end } = req.query;
-      if (start) query += " AND d.created_at >= @start";
-      if (end) query += " AND d.created_at <= @end";
+    const userGroupId = req.user.group_id;
+    const isAdminGroup = req.user.is_admin_group;
 
-      query += " ORDER BY d.created_at DESC";
+    const { start, end } = req.query;
 
-      const request = pool.request().input("group_id", userGroupId);
+    // -------- BUILD FILTER --------
+    let filter = `WHERE d.is_sent = 1`;
 
-      if (start) request.input("start", start);
-      if (end) request.input("end", end);
-
-      const result = await request.query(query);
-      console.log(result.recordset);
-      res.json(result.recordset);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Server error" });
+    if (isAdminGroup) {
+      filter += ` AND u.is_group_admin = 0`;
+    } else {
+      filter += `
+        AND EXISTS (
+          SELECT 1
+          FROM document_destinations dd
+          WHERE dd.document_id = d.id
+          AND dd.group_id = @group_id
+        )
+        AND d.admin_view = 1
+      `;
     }
-  },
 
+    if (start) filter += ` AND d.created_at >= @start`;
+    if (end) filter += ` AND d.created_at <= @end`;
+
+    // -------- MAIN QUERY --------
+    const query = `
+      SELECT *
+      FROM (
+        SELECT
+          d.id,
+          d.title,
+          d.content,
+          d.created_at,
+          d.sender_id,
+          g.name AS senderName,
+          (
+            SELECT STUFF((
+              SELECT ', ' + g2.name
+              FROM document_destinations dd
+              JOIN groups g2 ON g2.id = dd.group_id
+              WHERE dd.document_id = d.id
+              FOR XML PATH(''), TYPE
+            ).value('.', 'NVARCHAR(MAX)'), 1, 2, '')
+          ) AS destinations,
+          d.sent_at,
+          d.is_received,
+          g.is_admin_group,
+          ROW_NUMBER() OVER (ORDER BY d.created_at DESC) AS rn
+        FROM documents d
+        JOIN users u ON u.id = d.sender_id
+        JOIN groups g ON g.id = u.group_id
+        ${filter}
+      ) t
+      WHERE t.rn > @offset AND t.rn <= @maxRow
+      ORDER BY t.rn;
+    `;
+
+    // -------- COUNT QUERY --------
+    const countQuery = `
+      SELECT COUNT(*) AS total
+      FROM documents d
+      JOIN users u ON u.id = d.sender_id
+      JOIN groups g ON g.id = u.group_id
+      ${filter};
+    `;
+
+    // -------- REQUEST --------
+    const request = pool.request();
+    request.input("group_id", userGroupId);
+    request.input("offset", offset);
+    request.input("maxRow", maxRow);
+
+    if (start) request.input("start", start);
+    if (end) request.input("end", end);
+
+    const result = await request.query(query);
+
+    const countReq = pool.request().input("group_id", userGroupId);
+    if (start) countReq.input("start", start);
+    if (end) countReq.input("end", end);
+
+    const countResult = await countReq.query(countQuery);
+    const total = countResult.recordset[0].total;
+
+    res.json({
+      data: result.recordset,
+      page,
+      per_page: paging_nb,
+      total,
+      total_pages: Math.ceil(total / paging_nb)
+    });
+
+  } catch (err) {
+    console.error("getInbox error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+},
   async set_mark_selected(req, res) {
     try {
       // Ensure only admin can do this

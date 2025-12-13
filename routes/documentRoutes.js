@@ -6,20 +6,13 @@ const adminOnly = require("../middleware/adminOnly");
 const multer = require("multer");
 
 const upload = multer({ storage: multer.memoryStorage() });
-
-
-// const upload = multer({ storage });
 const { getPool, sql } = require("../config/db");
-
 
 // ✅ Create a new document
 router.post('/create', auth, documentController.create);
 
 // ✅ Save a document (create or update draft)
-
-
 router.post('/save', auth, upload.single("attachment"),documentController.save);
-// router.post("/upload/:id", auth, upload.single("file"), documentController.uploadFile);
 
 // ✅ Send selected drafts (mark as is_sent=1)
 router.post('/send', auth, documentController.sendDrafts);
@@ -48,24 +41,6 @@ router.get('/:id', auth, documentController.getDraftById);
 router.get("/:id/file", auth, documentController.getDraftFile);
 // Multer config - store file in memory as buffer
 
-
-// router.post("/api/documents/upload/:id", upload.single("file"), documentController.uploadFile);
-
 module.exports = router;
 
 
-// const express = require('express');
-// const router = express.Router();
-// const documentController = require('../controllers/documentController');
-// const auth = require('../middleware/auth');
-
-// router.post('/create', auth, documentController.create);
-// router.get('/drafts', auth, documentController.getDrafts);
-// router.post('/save', auth, documentController.save);
-// router.get('/:id', auth, documentController.getDraftById);
-
-// // router.get('/searchdrafts', auth, documentController.getDraftsByDate);
-// router.post('/send', auth, documentController.sendDrafts);
-
-
-// module.exports = router;

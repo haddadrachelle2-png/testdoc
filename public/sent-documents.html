@@ -1,141 +1,230 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>البريد المرسل</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
-</head>
-<body class="p-4">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>البريد المرسل</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      #pagination button {
+        padding: 6px 12px;
+        margin: 0 5px;
+        font-size: 14px;
+        cursor: pointer;
+      }
 
-<div class="container">
-    <h3>البريد المرسل</h3>
+      #pagination button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
 
-    <!-- Search Filters -->
-    <div class="row mb-3">
+      #page-info {
+        font-weight: bold;
+        margin: 0 10px;
+      }
+    </style>
+  </head>
+  <body class="p-4">
+    <div class="container">
+      <h3>البريد المرسل</h3>
+
+      <!-- Search Filters -->
+      <div class="row mb-3">
         <div class="col-md-3">
-           <label>تاريخ البدء</label>
-            <input type="date" id="startDate" class="form-control">
+          <label>تاريخ البدء</label>
+          <input type="date" id="startDate" class="form-control" />
         </div>
         <div class="col-md-3">
-            <label>تاريخ الانتهاء</label>
-            <input type="date" id="endDate" class="form-control">
+          <label>تاريخ الانتهاء</label>
+          <input type="date" id="endDate" class="form-control" />
         </div>
-       <div class="col-md-3">
-        <label>الوجهة</label>
-        <select class="form-control" id="adminFilterContainer">
-        <option value="">جميع المجموعات</option>
-       </select>
-       </div>
+        <div class="col-md-3">
+          <label>الوجهة</label>
+          <select class="form-control" id="adminFilterContainer">
+            <option value="">جميع المجموعات</option>
+          </select>
+        </div>
 
         <div class="col-md-3 align-self-end">
-            <button id="searchBtn" class="btn btn-primary">بحث</button>
+          <button id="searchBtn" class="btn btn-primary">بحث</button>
         </div>
-    </div>
+      </div>
 
-   <div class="d-flex justify-content-between gap-2 mt-3">
-        <button id="downloadReport" class="btn btn-outline-primary">📄 تحميل تقرير PDF</button>
-        <a href="index.html" class="btn btn-secondary">⬅ العودة إلى لوحة التحكم</a>
-    </div>
+      <div class="d-flex justify-content-between gap-2 mt-3">
+        <button id="downloadReport" class="btn btn-outline-primary">
+          📄 تحميل تقرير PDF
+        </button>
+        <a href="index.html" class="btn btn-secondary"
+          >⬅ العودة إلى لوحة التحكم</a
+        >
+      </div>
 
-    <!-- Sent Documents Table -->
-    <table class="table table-bordered mt-2">
+      <!-- Sent Documents Table -->
+      <table class="table table-bordered mt-2">
         <thead>
-            <tr>
-                <th>الموضوع</th>
-                <th>تاريخ الإنشاء</th>
-                <th>تاريخ الإرسال</th>
-                <th>الوجهات</th>
-            </tr>
+          <tr>
+            <th>الموضوع</th>
+            <th>تاريخ الإنشاء</th>
+            <th>تاريخ الإرسال</th>
+            <th>الوجهات</th>
+          </tr>
         </thead>
         <tbody id="sentTable"></tbody>
-    </table>
+      </table>
+      <div id="pagination" style="text-align: center; margin-top: 20px">
+        <button id="prev-btn">السابق</button>
+        <span
+          >صفحة
+          <input
+            type="number"
+            id="page-input"
+            style="width: 50px; text-align: center"
+            min="1"
+          />
+          من <span id="total-pages">1</span></span
+        >
+        <button id="next-btn">التالي</button>
+      </div>
+    </div>
 
-    
-</div>
+    <script>
+      const token = localStorage.getItem("token");
+      if (!token) location.href = "login.html";
 
-<script>
-const token = localStorage.getItem("token");
-if (!token) location.href="login.html";
+      const sentTable = document.getElementById("sentTable");
+      const groupFilter = document.getElementById("adminFilterContainer");
 
-const sentTable = document.getElementById("sentTable");
-const groupFilter = document.getElementById("adminFilterContainer");
+      let currentPage = 1;
+      let totalPages = 1;
+      let allDocuments = [];
 
-// Load sent documents
-async function loadSentDocs() {
-     try {
-        const res = await fetch(`/api/documents/sent`, {
-            headers: { "Authorization": "Bearer " + token }
-        });
-        
-        if (!res.ok) {
+      const prevBtn = document.getElementById("prev-btn");
+      const nextBtn = document.getElementById("next-btn");
+      const pageInput = document.getElementById("page-input");
+      const totalPagesSpan = document.getElementById("total-pages");
+
+      async function loadSentDocs(page = 1) {
+        try {
+          const start = document.getElementById("startDate").value;
+          const end = document.getElementById("endDate").value;
+
+          let url = `/api/documents/sent?page=${page}`;
+          const params = [];
+          if (start) params.push(`start=${start}`);
+          if (end) params.push(`end=${end}`);
+          if (params.length) url += "&" + params.join("&");
+
+          const res = await fetch(url, {
+            headers: { Authorization: "Bearer " + token },
+          });
+
+          if (!res.ok) {
             alert("Error loading documents");
             return;
-        }
+          }
 
-        allDocuments = await res.json();
-        await populateGroupFilter();
-        renderTable();
+          const result = await res.json();
 
-    } catch (err) {
-        console.error(err);
-        alert("Network error");
-    }
-}
+          allDocuments = result.data;
+          currentPage = result.page;
+          totalPages = result.total_pages;
 
-// Populate group filter dropdown by fetching destinations for each document
-async function populateGroupFilter() {
-    const groupSet = new Set();
-    
-    for (const doc of allDocuments) {
-        try {
-            const destRes = await fetch(`/api/documents/${doc.id}/destinations`, {
-                headers: { "Authorization": "Bearer " + token }
-            });
-            const dests = await destRes.json();
-            dests.forEach(d => groupSet.add(d.name));
+        //   await populateGroupFilter();
+          renderTable();
+          updatePagination();
         } catch (err) {
-            console.error('Error fetching destinations:', err);
+          console.error(err);
+          alert("Network error");
         }
+      }
+
+     prevBtn.addEventListener("click", () => {
+  if (currentPage > 1) loadSentDocs(currentPage - 1);
+});
+
+nextBtn.addEventListener("click", () => {
+  if (currentPage < totalPages) loadSentDocs(currentPage + 1);
+});
+
+pageInput.addEventListener("change", (e) => {
+  let p = parseInt(e.target.value);
+  if (p >= 1 && p <= totalPages) loadSentDocs(p);
+  else e.target.value = currentPage; // reset if invalid
+});
+
+function updatePagination() {
+  totalPagesSpan.innerText = totalPages;
+  pageInput.value = currentPage;
+
+  prevBtn.disabled = currentPage <= 1;
+  nextBtn.disabled = currentPage >= totalPages;
+}
+      async function loadAllDestinations() {
+  try {
+    const res = await fetch(`/api/documents/sent?all=true`, {
+      headers: { Authorization: "Bearer " + token },
+    });
+    if (!res.ok) throw new Error("Failed to load all documents");
+
+    const docs = await res.json(); // Expect array of all documents
+
+    const groupSet = new Set();
+    for (const doc of docs) {
+      try {
+        const destRes = await fetch(`/api/documents/${doc.id}/destinations`, {
+          headers: { Authorization: "Bearer " + token },
+        });
+        const dests = await destRes.json();
+        dests.forEach(d => groupSet.add(d.name));
+      } catch (err) {
+        console.error("Error fetching destinations:", err);
+      }
     }
-    
-    allGroups = Array.from(groupSet).sort();
-    
-    allGroups.forEach(group => {
-        const option = document.createElement('option');
+
+    // Clear and populate dropdown
+    groupFilter.innerHTML = `<option value="">جميع المجموعات</option>`;
+    Array.from(groupSet)
+      .sort()
+      .forEach(group => {
+        const option = document.createElement("option");
         option.value = group;
         option.textContent = group;
         groupFilter.appendChild(option);
-    });
+      });
+
+  } catch (err) {
+    console.error(err);
+  }
 }
 
-// Render table with optional group filter
-// Render table with optional group filter
-async function renderTable() {
-    
-    const selectedGroup = groupFilter.value;
-    let filteredDocs = allDocuments;
+      // Render table with optional group filter
+      // Render table with optional group filter
+      async function renderTable() {
+        const selectedGroup = groupFilter.value;
+        let filteredDocs = allDocuments;
 
-    sentTable.innerHTML = "";
+        sentTable.innerHTML = "";
 
+        for (const doc of filteredDocs) {
+          // fetch destination names
+          // const destRes = await fetch(`/api/documents/${doc.id}/destinations`, {
+          //     headers: {"Authorization":"Bearer "+token}
+          //  });
+          // const dests = await destRes.json();
+          // const destNames = dests.map(d=>d.name).join(", ");
 
-    for(const doc of filteredDocs){
-        // fetch destination names
-       // const destRes = await fetch(`/api/documents/${doc.id}/destinations`, {
-       //     headers: {"Authorization":"Bearer "+token}
-      //  });
-        // const dests = await destRes.json();
-        // const destNames = dests.map(d=>d.name).join(", ");
-        
-        // Filter by group if selected
-        if (selectedGroup && !doc.destinations.includes(selectedGroup)) {
+          // Filter by group if selected
+          if (selectedGroup && !doc.destinations.includes(selectedGroup)) {
             continue;
-        }
+          }
 
-        // Get creator's group name (using senderName which now contains group name from backend)
-        const creatorGroup = doc.senderName || "N/A";
-        
-        sentTable.innerHTML += `
+          // Get creator's group name (using senderName which now contains group name from backend)
+          const creatorGroup = doc.senderName || "N/A";
+
+          sentTable.innerHTML += `
             <tr>
                 <td>${doc.title}</td>
                 <td>${new Date(doc.created_at).toLocaleString()}</td>
@@ -143,53 +232,61 @@ async function renderTable() {
                 <td>${doc.destinations}</td>
             </tr>
         `;
-    }
-}
-
-// Search button
-document.getElementById("searchBtn").addEventListener("click", renderTable);
-
-// Initial load
-loadSentDocs();
-
-// Download PDF report
-document.getElementById('downloadReport').addEventListener('click', async () => {
-    const start = document.getElementById('startDate').value;
-    const end = document.getElementById('endDate').value;
-    let url = '/api/documents/sent/report';
-    const params = [];
-    if (start) params.push(`start=${start}`);
-    if (end) params.push(`end=${end}`);
-    if (params.length) url += '?' + params.join('&');
-
-    // download by creating an anchor
-    const a = document.createElement('a');
-    a.href = url;
-    a.target = '_blank';
-    a.rel = 'noopener';
-    // include token via header by fetching blob then creating object URL
-    try {
-        const res = await fetch(url, { headers: { 'Authorization': 'Bearer '+token } });
-        if (!res.ok) {
-            alert('Failed to generate report');
-            return;
         }
-        const blob = await res.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        const dl = document.createElement('a');
-        dl.href = blobUrl;
-        dl.download = 'sent-documents-report.pdf';
-        document.body.appendChild(dl);
-        dl.click();
-        dl.remove();
-        URL.revokeObjectURL(blobUrl);
-    } catch (err) {
-        console.error(err);
-        alert('Network error while generating report');
-    }
-});
+      }
 
- fetch("/api/users/me", {
+      // Search button
+      // document.getElementById("searchBtn").addEventListener("click", renderTable);
+      document.getElementById("searchBtn").addEventListener("click", () => {
+        loadSentDocs(1);
+      });
+
+      loadAllDestinations(); // populate group filter with ALL documents
+      // Initial load
+      loadSentDocs(1);
+
+      // Download PDF report
+      document
+        .getElementById("downloadReport")
+        .addEventListener("click", async () => {
+          const start = document.getElementById("startDate").value;
+          const end = document.getElementById("endDate").value;
+          let url = "/api/documents/sent/report";
+          const params = [];
+          if (start) params.push(`start=${start}`);
+          if (end) params.push(`end=${end}`);
+          if (params.length) url += "?" + params.join("&");
+
+          // download by creating an anchor
+          const a = document.createElement("a");
+          a.href = url;
+          a.target = "_blank";
+          a.rel = "noopener";
+          // include token via header by fetching blob then creating object URL
+          try {
+            const res = await fetch(url, {
+              headers: { Authorization: "Bearer " + token },
+            });
+            if (!res.ok) {
+              alert("Failed to generate report");
+              return;
+            }
+            const blob = await res.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const dl = document.createElement("a");
+            dl.href = blobUrl;
+            dl.download = "sent-documents-report.pdf";
+            document.body.appendChild(dl);
+            dl.click();
+            dl.remove();
+            URL.revokeObjectURL(blobUrl);
+          } catch (err) {
+            console.error(err);
+            alert("Network error while generating report");
+          }
+        });
+
+      fetch("/api/users/me", {
         headers: { Authorization: "Bearer " + token },
       })
         .then((res) => {
@@ -201,49 +298,13 @@ document.getElementById('downloadReport').addEventListener('click', async () => 
         })
         .then((data) => {
          
-    //       if (data.is_admin_group) {
-    //   const adminLinks = document.getElementById("adminFilterContainer");
-    // adminLinks.innerHTML = `
-       
-    //          <label>Destination Group</label>
-    //          <select id="destFilter" class="form-control">
-    //              <option value="">All Destinations</option>
-    //          </select>
-        
-    // `;
-    //      loadDestinationsForDropdown();
-    //       }
         })
         .catch((err) => {
           console.error(err);
           logout();
         });
 
-async function loadDestinationsForDropdown() {
-    const url = `/api/documents/sent`;
-    const res = await fetch(url, {
-        headers: { Authorization: "Bearer " + token }
-    });
-
-    const docs = await res.json();
-    const groupSet = new Set();
-
-    for (const doc of docs) {
-        const destRes = await fetch(`/api/documents/${doc.id}/destinations`, {
-            headers: { Authorization: "Bearer " + token }
-        });
-        const dests = await destRes.json();
-        dests.forEach(d => groupSet.add(d.name));
-    }
-
-    const destFilter = document.getElementById("destFilter");
-    [...groupSet]
-        .sort()
-        .forEach(name => {
-            destFilter.innerHTML += `<option value="${name}">${name}</option>`;
-        });
-}
-</script>
-
-</body>
+    
+    </script>
+  </body>
 </html>

@@ -221,8 +221,10 @@ function authHeaders(extra = {}) {
     ...extra
   };
 }
-function openFile(id,ext) {
-  const token = localStorage.getItem("token"); // your auth token
+
+
+function openFile(id, ext) {
+  const token = localStorage.getItem("token");
 
   fetch(`/api/documents/${id}/file`, {
     headers: {
@@ -232,13 +234,24 @@ function openFile(id,ext) {
     .then(res => res.blob())
     .then(blob => {
       const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
+
+      // Create a temporary link
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `file.${ext}`; // 👈 give the file its correct extension
+      document.body.appendChild(a);
+      a.click();
+
+      // Cleanup
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     })
     .catch(err => {
       alert("خطأ أثناء تحميل الملف");
       console.error(err);
     });
 }
+
       function loadDraft(id) {
         fetch(`/api/documents/${id}`, {
           headers: authHeaders(),
