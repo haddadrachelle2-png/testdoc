@@ -23,8 +23,8 @@ async function getPagingNumber(pool) {
 }
 module.exports = {
   // Create a new document
-  async create(req, res) {
-    const { title, content, doc_num, doc_date, number_papers, destinations } =
+    async create(req, res) {
+      const { title, content, doc_num, doc_date, number_papers, send_paper, send_electronic, remarks, destinations } =
       req.body;
     if (
       !title ||
@@ -45,6 +45,9 @@ module.exports = {
         doc_num,
         safeDocDate,
         number_papers,
+        send_paper,
+        send_electronic,
+        remarks,
         req.user.id,
         req.user.is_group_admin,
         destinations
@@ -60,7 +63,7 @@ module.exports = {
   async save(req, res) {
     try {
       console.log("Raw request body:", req.body);
-
+    
       // Extract fields from FormData
       let {
         id,
@@ -69,6 +72,9 @@ module.exports = {
         doc_num,
         doc_date,
         number_papers,
+        send_paper,
+        send_electronic,
+        remarks,
         destinations,
       } = req.body;
 
@@ -85,6 +91,9 @@ module.exports = {
         destArray = destinations.map(Number);
       }
 
+        
+      // send_paper = send_paper === "true" || send_paper === true;
+      // send_electronic = send_electronic === "true" || send_electronic === true;
       // Validation
       if (
         !title ||
@@ -92,6 +101,9 @@ module.exports = {
         !doc_num ||
         !doc_date ||
         !number_papers ||
+        !send_paper ||
+        !send_electronic ||
+        !remarks ||
         !destArray.length
       ) {
         return res.status(400).json({ message: "Missing required fields" });
@@ -108,6 +120,9 @@ module.exports = {
           doc_num,
           safeDocDate,
           number_papers,
+          send_paper,
+          send_electronic,
+          remarks,
           content,
           destArray
         );
@@ -120,6 +135,9 @@ module.exports = {
           doc_num,
           safeDocDate,
           number_papers,
+          send_paper,
+          send_electronic,
+          remarks,
           req.user.id,
           req.user.is_group_admin,
           destArray
@@ -232,6 +250,9 @@ module.exports = {
     d.doc_num,
     d.doc_date,
     d.number_papers,
+    d.send_paper,
+    d.send_electronic,
+    d.remarks,
     d.title,
     d.content,
     d.sender_id,
@@ -347,6 +368,9 @@ ORDER BY d.id DESC
           d.doc_num,
           d.doc_date,
           d.number_papers,
+          d.send_paper,
+          d.send_electronic,
+          d.remarks,
           d.title,
           d.content,
           d.sender_id,
@@ -442,29 +466,43 @@ ORDER BY d.id DESC
   },
 
   // GET /api/documents/sent?start=YYYY-MM-DD&end=YYYY-MM-DD
- async getSentDocuments(req, res) {
-  try {
-    const pool = await getPool();
-    const senderId = req.user.id;
+  async getSentDocuments(req, res) {
+    try {
+      const pool = await getPool();
+      const senderId = req.user.id;
+      const destination = req.query.destination || null;
 
-    const page = parseInt(req.query.page) || 1;
-    const paging_nb = await getPagingNumber(pool);
-    const offset = (page - 1) * paging_nb;
-    const maxRow = offset + paging_nb;
+      const page = parseInt(req.query.page) || 1;
+      const paging_nb = await getPagingNumber(pool);
+      const offset = (page - 1) * paging_nb;
+      const maxRow = offset + paging_nb;
 
-    const { start, end } = req.query;
+      const { start, end } = req.query;
 
-    // -------- FILTER --------
-    let filter = `
+      // -------- FILTER --------
+      let filter = `
       WHERE d.sender_id = @sender_id
-      AND d.is_sent = 1
+AND d.is_sent = 1
+${
+  destination
+    ? `
+AND EXISTS (
+  SELECT 1
+  FROM document_destinations dd
+  JOIN groups g ON g.id = dd.group_id
+  WHERE dd.document_id = d.id
+  AND g.name = @destination
+)`
+    : ""
+}
+
     `;
 
-    if (start) filter += " AND d.sent_at >= @start";
-    if (end) filter += " AND d.sent_at <= @end";
+      if (start) filter += " AND d.sent_at >= @start";
+      if (end) filter += " AND d.sent_at <= @end";
 
-    // -------- MAIN QUERY --------
-    const query = `
+      // -------- MAIN QUERY --------
+      const query = `
       SELECT *
       FROM (
         SELECT
@@ -489,45 +527,52 @@ ORDER BY d.id DESC
       ORDER BY t.rn;
     `;
 
-    // -------- COUNT QUERY --------
-    const countQuery = `
+      // -------- COUNT QUERY --------
+      const countQuery = `
       SELECT COUNT(*) AS total
       FROM documents d
       ${filter}
     `;
 
-    // -------- REQUEST --------
-    const request = pool.request()
-      .input("sender_id", senderId)
-      .input("offset", offset)
-      .input("maxRow", maxRow);
+      // -------- REQUEST --------
+      const request = pool
+        .request()
+        .input("sender_id", senderId)
+        .input("offset", offset)
+        .input("maxRow", maxRow);
 
-    if (start) request.input("start", start);
-    if (end) request.input("end", end);
+      if (destination) {
+        request.input("destination", destination);
+      }
+      if (start) request.input("start", start);
+      if (end) request.input("end", end);
 
-    const result = await request.query(query);
+      const result = await request.query(query);
 
-    const countReq = pool.request().input("sender_id", senderId);
-    if (start) countReq.input("start", start);
-    if (end) countReq.input("end", end);
+      const countReq = pool.request().input("sender_id", senderId);
 
-    const countResult = await countReq.query(countQuery);
-    const total = countResult.recordset[0].total;
+      if (destination) {
+        countReq.input("destination", destination);
+      }
+      if (start) countReq.input("start", start);
+      if (end) countReq.input("end", end);
 
-    // -------- RESPONSE --------
-    res.json({
-      data: result.recordset,
-      page,
-      per_page: paging_nb,
-      total,
-      total_pages: Math.ceil(total / paging_nb)
-    });
+      const countResult = await countReq.query(countQuery);
+      const total = countResult.recordset[0].total;
 
-  } catch (err) {
-    console.error("getSentDocuments error:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-},
+      // -------- RESPONSE --------
+      res.json({
+        data: result.recordset,
+        page,
+        per_page: paging_nb,
+        total,
+        total_pages: Math.ceil(total / paging_nb),
+      });
+    } catch (err) {
+      console.error("getSentDocuments error:", err);
+      res.status(500).json({ message: "Server error", error: err.message });
+    }
+  },
   // GET /api/documents/:id/destinations
   async getDocumentDestinations(req, res) {
     try {
@@ -549,27 +594,27 @@ ORDER BY d.id DESC
   },
 
   // Get Inbox (sent to this user's group)
-async getInbox(req, res) {
-  try {
-    const pool = await getPool();
+  async getInbox(req, res) {
+    try {
+      const pool = await getPool();
 
-    const page = parseInt(req.query.page) || 1;
-    const paging_nb = await getPagingNumber(pool);
-    const offset = (page - 1) * paging_nb;
-    const maxRow = offset + paging_nb;
+      const page = parseInt(req.query.page) || 1;
+      const paging_nb = await getPagingNumber(pool);
+      const offset = (page - 1) * paging_nb;
+      const maxRow = offset + paging_nb;
 
-    const userGroupId = req.user.group_id;
-    const isAdminGroup = req.user.is_admin_group;
+      const userGroupId = req.user.group_id;
+      const isAdminGroup = req.user.is_admin_group;
 
-    const { start, end } = req.query;
+      const { start, end } = req.query;
 
-    // -------- BUILD FILTER --------
-    let filter = `WHERE d.is_sent = 1`;
+      // -------- BUILD FILTER --------
+      let filter = `WHERE d.is_sent = 1`;
 
-    if (isAdminGroup) {
-      filter += ` AND u.is_group_admin = 0`;
-    } else {
-      filter += `
+      if (isAdminGroup) {
+        filter += ` AND u.is_group_admin = 0`;
+      } else {
+        filter += `
         AND EXISTS (
           SELECT 1
           FROM document_destinations dd
@@ -578,13 +623,13 @@ async getInbox(req, res) {
         )
         AND d.admin_view = 1
       `;
-    }
+      }
 
-    if (start) filter += ` AND d.created_at >= @start`;
-    if (end) filter += ` AND d.created_at <= @end`;
+      if (start) filter += ` AND d.created_at >= @start`;
+      if (end) filter += ` AND d.created_at <= @end`;
 
-    // -------- MAIN QUERY --------
-    const query = `
+      // -------- MAIN QUERY --------
+      const query = `
       SELECT *
       FROM (
         SELECT
@@ -616,8 +661,8 @@ async getInbox(req, res) {
       ORDER BY t.rn;
     `;
 
-    // -------- COUNT QUERY --------
-    const countQuery = `
+      // -------- COUNT QUERY --------
+      const countQuery = `
       SELECT COUNT(*) AS total
       FROM documents d
       JOIN users u ON u.id = d.sender_id
@@ -625,37 +670,36 @@ async getInbox(req, res) {
       ${filter};
     `;
 
-    // -------- REQUEST --------
-    const request = pool.request();
-    request.input("group_id", userGroupId);
-    request.input("offset", offset);
-    request.input("maxRow", maxRow);
+      // -------- REQUEST --------
+      const request = pool.request();
+      request.input("group_id", userGroupId);
+      request.input("offset", offset);
+      request.input("maxRow", maxRow);
 
-    if (start) request.input("start", start);
-    if (end) request.input("end", end);
+      if (start) request.input("start", start);
+      if (end) request.input("end", end);
 
-    const result = await request.query(query);
+      const result = await request.query(query);
 
-    const countReq = pool.request().input("group_id", userGroupId);
-    if (start) countReq.input("start", start);
-    if (end) countReq.input("end", end);
+      const countReq = pool.request().input("group_id", userGroupId);
+      if (start) countReq.input("start", start);
+      if (end) countReq.input("end", end);
 
-    const countResult = await countReq.query(countQuery);
-    const total = countResult.recordset[0].total;
+      const countResult = await countReq.query(countQuery);
+      const total = countResult.recordset[0].total;
 
-    res.json({
-      data: result.recordset,
-      page,
-      per_page: paging_nb,
-      total,
-      total_pages: Math.ceil(total / paging_nb)
-    });
-
-  } catch (err) {
-    console.error("getInbox error:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-},
+      res.json({
+        data: result.recordset,
+        page,
+        per_page: paging_nb,
+        total,
+        total_pages: Math.ceil(total / paging_nb),
+      });
+    } catch (err) {
+      console.error("getInbox error:", err);
+      res.status(500).json({ message: "Server error", error: err.message });
+    }
+  },
   async set_mark_selected(req, res) {
     try {
       // Ensure only admin can do this

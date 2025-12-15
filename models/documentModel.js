@@ -2,17 +2,35 @@ const { getPool } = require("../config/db");
 const sql = require("mssql");
 
 module.exports = {
-  async createDocument(title, content, doc_num, doc_date, number_papers,sender_id, is_admin_group, destinationGroups) {
+  async createDocument(
+    title,
+    content,
+    doc_num,
+    doc_date,
+    number_papers,
+    send_paper,
+    send_electronic,
+    remarks,
+    sender_id,
+    is_admin_group,
+    destinationGroups
+  ) {
     const pool = await getPool();
     const result = await pool
       .request()
       .input("title", title)
-      .input("content", content).input("doc_num", doc_num).input("doc_date", doc_date)
-      .input("number_papers", number_papers).input("is_admin_group", is_admin_group)
+      .input("content", content)
+      .input("doc_num", doc_num)
+      .input("doc_date", doc_date)
+      .input("number_papers", number_papers)
+      .input("send_paper", send_paper)
+      .input("send_electronic", send_electronic)
+      .input("remarks", remarks)
+      .input("is_admin_group", is_admin_group)
       .input("sender_id", sender_id).query(`
-                INSERT INTO documents (title, content, doc_num, doc_date, number_papers, sender_id)
+                INSERT INTO documents (title, content, doc_num, doc_date, number_papers, send_paper, send_electronic, remarks, sender_id)
                 OUTPUT INSERTED.id
-                VALUES (@title, @content, @doc_num, @doc_date, @number_papers,  @sender_id)
+                VALUES (@title, @content, @doc_num, @doc_date, @number_papers, @send_paper, @send_electronic, @remarks,  @sender_id)
             `);
 
     const documentId = result.recordset[0].id;
@@ -42,7 +60,18 @@ module.exports = {
     return result.recordset[0];
   },
 
-  async updateDraft(documentId, title, doc_num, doc_date, number_papers,content, destinations) {
+  async updateDraft(
+    documentId,
+    title,
+    doc_num,
+    doc_date,
+    number_papers,
+    send_paper,
+    send_electronic,
+    remarks,
+    content,
+    destinations
+  ) {
     const pool = await getPool();
     //const safeDocDate = doc_date ? new Date(doc_date) : null;
     // Update main document
@@ -52,11 +81,14 @@ module.exports = {
       .input("title", title)
       .input("content", content)
       .input("doc_num", doc_num)
-      
+
       .input("doc_date", doc_date)
       .input("number_papers", number_papers)
-          .query(
-        `UPDATE documents SET title=@title, content=@content, doc_num=@doc_num, doc_date=@doc_date, number_papers=@number_papers
+      .input("send_paper", send_paper)
+      .input("send_electronic", send_electronic)
+      .input("remarks", remarks)
+      .query(
+        `UPDATE documents SET title=@title, content=@content, doc_num=@doc_num, doc_date=@doc_date, number_papers=@number_papers, send_paper=@send_paper, send_electronic=@send_electronic, remarks=@remarks
         WHERE id=@id AND is_sent=0`
       );
 
@@ -81,15 +113,4 @@ module.exports = {
 
     return documentId;
   },
-
-  //   // Upload file
-  // async uploadFile(documentId, file) {
-  //   const pool = await getPool();
-  //   await pool
-  //     .request()
-  //     .input("id", sql.Int, documentId)
-  //     .input("doc_file", sql.VarBinary(sql.MAX), file.buffer)
-  //     .input("doc_ext", sql.NVarChar(10), file.originalname.split(".").pop())
-  //     .query(`UPDATE documents SET doc_file=@doc_file, doc_ext=@doc_ext WHERE id=@id`);
-  // },
 };

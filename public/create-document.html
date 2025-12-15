@@ -16,7 +16,7 @@
         <div class="d-flex justify-content-between align-items-center mb-3">
           <button class="btn btn-primary">حفظ</button>
 
-          <a href="index.html" class="btn btn-secondary"
+          <a href="index.html" class="btn btn-secondary"  id="backBtn"
             >⬅ العودة إلى لوحة التحكم</a
           >
         </div>
@@ -82,15 +82,39 @@
           </div>
         </div>
 
-        <div class="mb-3">
-          <label class="form-label">المحتوى</label>
-          <textarea
-            id="content"
-            class="form-control"
-            rows="6"
-            required
-          ></textarea>
-        </div>
+       <div class="mb-3 d-flex gap-3">
+  <!-- Content textarea -->
+  <div style="flex: 2">
+    <label class="form-label">المحتوى</label>
+    <textarea id="content" class="form-control" rows="6" required></textarea>
+  </div>
+
+  <!-- Send options + Remarks -->
+  <div style="flex: 1; display: flex; flex-direction: column; gap: 1rem;">
+    <!-- طريقة الإرسال -->
+    <div class="mb-3">
+      <label class="form-label fw-bold">طريقة الإرسال</label>
+
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="send_paper" />
+        <label class="form-check-label" for="send_paper">إرسال ورقي</label>
+      </div>
+
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="send_electronic" />
+        <label class="form-check-label" for="send_electronic">إرسال إلكتروني</label>
+      </div>
+    </div>
+
+    <!-- ملاحظات -->
+    <div class="mb-3">
+      <label for="remarks" class="form-label fw-bold">ملاحظات</label>
+      <input type="text" id="remarks" class="form-control" placeholder="أدخل الملاحظات إن وجدت" />
+    </div>
+  </div>
+</div>
+       
+
         <div class="mb-3">
           <label class="form-label">إرفاق ملف</label>
           <input
@@ -126,9 +150,47 @@
           ></div>
         
 </form>
-    <script>
+           <script>
       const token = localStorage.getItem("token");
       if (!token) location.href = "login.html";
+
+       let isDirty = false;
+
+  // watch all inputs, selects, textareas
+  document.querySelectorAll("input, textarea, select").forEach(el => {
+    el.addEventListener("change", () => {
+      isDirty = true;
+    });
+  });
+
+   document.getElementById("backBtn").addEventListener("click", async function (e) {
+  if (!isDirty) return;
+
+  e.preventDefault();
+
+  const wantsSave = confirm(
+    "لديك تغييرات غير محفوظة.\nهل تريد الحفظ قبل الخروج؟"
+  );
+
+  if (wantsSave) {
+    try {
+      await saveDocument();   //  SAME SAVE FUNCTION
+      isDirty = false;
+      window.location.href = this.href;
+    } catch (err) {
+      alert("فشل الحفظ، لم يتم الخروج");
+    }
+  } else {
+    window.location.href = this.href;
+  }
+});
+
+  window.addEventListener("beforeunload", function (e) {
+    if (!isDirty) return;
+
+    e.preventDefault();
+    e.returnValue = "";
+  });
 
       document
         .getElementById("selectAllDestinations")
@@ -264,6 +326,9 @@ function openFile(id, ext) {
             document.getElementById("doc_num").value = doc.doc_num;
             document.getElementById("doc_date").value = doc.doc_date;
             document.getElementById("number_papers").value = doc.number_papers;
+            document.getElementById("send_paper").checked = !!doc.send_paper;
+            document.getElementById("send_electronic").checked = !!doc.send_electronic;
+            document.getElementById("remarks").value = doc.remarks;
 
             // ✅ Display existing file
  if (doc.has_file) {
@@ -272,13 +337,9 @@ function openFile(id, ext) {
     <button type="button" class="btn btn-info mt-2" onclick="openFile('${doc.id}','${doc.doc_ext}')">
   عرض الملف الحالي
 </button>
-
-    
   `;
 }
-// <button type="button" class="btn btn-secondary mt-2 ms-2"
-//       onclick="previewFile('${doc.fileUrl}')">
-//       معاينة المحتوى
+
 //     </button>
             // Normalize destination IDs
             let selectedIds = [];
@@ -338,67 +399,68 @@ function openFile(id, ext) {
           });
       }
 
-      document
-        .getElementById("docForm")
-        .addEventListener("submit", async (e) => {
-          e.preventDefault();
-          const title = document.getElementById("title").value.trim();
-          const content = document.getElementById("content").value.trim();
-          const doc_num = document.getElementById("doc_num").value.trim();
-          const doc_date = document.getElementById("doc_date").value.trim();
-          
-          const number_papers = document
-            .getElementById("number_papers")
-            .value.trim();
-          // const destinations = Array.from(document.getElementById("destinations").selectedOptions).map(o=>o.value);
-          const destinations = Array.from(
-            document.querySelectorAll(".dest-check:checked")
-          ).map((ch) => ch.value);
+      async function saveDocument() {
+  const title = document.getElementById("title").value.trim();
+  const content = document.getElementById("content").value.trim();
+  const doc_num = document.getElementById("doc_num").value.trim();
+  const doc_date = document.getElementById("doc_date").value.trim();
+  const send_paper = document.getElementById("send_paper").checked ? 1 : 0;
+const send_electronic = document.getElementById("send_electronic").checked ? 1 : 0;
+  const remarks = document.getElementById("remarks").value.trim();
+  
+  const number_papers = document
+    .getElementById("number_papers")
+    .value.trim();
 
-          // const payload = {
-          //   title,
-          //   content,
-          //   doc_num,
-          //   doc_date,
-          //   number_papers,
-          //   destinations,
-          //   doc_file,
-          // };
-          
-          const formData = new FormData();
-          //console.log("docId:", docId);
-          if (docId)
-            formData.append("id",docId);
+  const destinations = Array.from(
+    document.querySelectorAll(".dest-check:checked")
+  ).map((ch) => ch.value);
 
-          formData.append("title",title);
-           formData.append("content",content);
-            formData.append("doc_num",doc_num);
-             formData.append("doc_date",doc_date);
-              formData.append("number_papers",number_papers);
-               formData.append("destinations",destinations);
+  const formData = new FormData();
 
-               const fileInput = document.getElementById("attachment");
-               const file = fileInput.files[0]; // may be null
-               formData.append("attachment",file);
-       
-             
-          console.log(formData);
-          const res = await fetch("/api/documents/save", {
-            method: "POST",
-            headers:  authHeaders(),    
-            body: formData,    
-          });
+  if (docId) formData.append("id", docId);
 
-          const msg = await res.json();
-          if (!res.ok) {
-            show("errorBox", msg.message || "خطأ في حفظ المستند");
-          } else {
-            show("successBox", msg.message);
-            if (!docId) document.getElementById("docForm").reset();
-          }
+  formData.append("title", title);
+  formData.append("content", content);
+  formData.append("doc_num", doc_num);
+  formData.append("doc_date", doc_date);
+  formData.append("number_papers", number_papers);
+  formData.append("destinations", destinations);
+  formData.append("send_paper", send_paper ? "true" : "false");
+  formData.append("send_electronic", send_electronic ? "true" : "false");
+  formData.append("remarks", remarks);
 
-        
-        });
+  const fileInput = document.getElementById("attachment");
+  const file = fileInput.files[0];
+  if (file) {
+    formData.append("attachment", file);
+  }
+
+  const res = await fetch("/api/documents/save", {
+    method: "POST",
+    headers: authHeaders(), // ⚠️ must NOT set Content-Type manually
+    body: formData,
+  });
+
+  const msg = await res.json();
+
+  if (!res.ok) {
+    throw new Error(msg.message || "خطأ في حفظ المستند");
+  }
+
+  show("successBox", msg.message);
+  return true;
+}
+      document.getElementById("docForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    await saveDocument();
+    isDirty = false;
+    if (!docId) document.getElementById("docForm").reset();
+  } catch (err) {
+    show("errorBox", err.message);
+  }
+});
 
       function show(id, text) {
         const box = document.getElementById(id);

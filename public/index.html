@@ -5,20 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>لوحة التحكم | نظام المستندات</title>
 
- <!-- Bootstrap RTL -->
+    <!-- Bootstrap RTL -->
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css"
       rel="stylesheet"
     />
 
     <style>
-     body {
+      body {
         /* background-color: #f8f9fa;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; */
-         background:  url("lebanese_army.jpg") no-repeat center bottom fixed;
-         /* background-size: zoomed out */
-         /* background-position: center calc(100% - 40px); move 40px upward */
-         background-position: bottom 20px;
+        background: url("lebanese_army.jpg") no-repeat center bottom fixed;
+        /* background-size: zoomed out */
+        /* background-position: center calc(100% - 40px); move 40px upward */
+        background-position: bottom 20px;
       }
       .sidebar {
         height: 100vh;
@@ -57,11 +57,13 @@
 
       <!-- Admin-only link -->
       <div id="adminLinks"></div>
+      <!-- Admin-only for mahfouzat to create users -->
+      <div id="is_system_admin"></div>
 
       <a href="#" id="logoutBtn" class="text-danger mt-5">تسجيل الخروج</a>
     </div>
 
-     <!-- Content -->
+    <!-- Content -->
     <div class="content">
       <h2 class="mb-3">أهلاً وسهلاً، <span id="username"></span></h2>
 
@@ -112,12 +114,12 @@
       fetch("/api/users/me", {
         headers: { Authorization: "Bearer " + token },
       })
-      .then(res => {
-    if (!res.ok) throw new Error("Unauthorized");
-    return res.json(); // <-- parse JSON here
-       })
-      
-         .then((data) => {
+        .then((res) => {
+          if (!res.ok) throw new Error("Unauthorized");
+          return res.json(); // <-- parse JSON here
+        })
+
+        .then((data) => {
           document.getElementById("username").innerText = data.username;
           document.getElementById("groupName").innerText = data.group;
           document.getElementById("groupRole").innerText = data.is_group_admin
@@ -127,12 +129,18 @@
             ? "مسؤول النظام"
             : "مستخدم عادي";
 
-       // ✅ Show Register User link and to be send link only for admins
+          // ✅ Show to be send link only for admins
           if (data.is_admin_group) {
             const adminLinks = document.getElementById("adminLinks");
             adminLinks.innerHTML = `
             <a href="to-be-sent.html">📤 إرسال أو تحويل</a>
-            <a href="register.html" class="mt-2">➕ تسجيل مستخدم جديد</a>
+          
+        `;
+          }
+          if (data.is_system_admin) {
+            const is_system_admin = document.getElementById("is_system_admin");
+            is_system_admin.innerHTML = `
+               <a href="register.html" class="mt-2">➕ تسجيل مستخدم جديد</a>
         `;
           }
         })

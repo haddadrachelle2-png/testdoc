@@ -12,7 +12,8 @@ id: req.user.id,
 username: req.user.username,
 group: group.name,
 is_group_admin: req.user.is_group_admin,
-is_admin_group: req.user.is_admin_group
+is_admin_group: req.user.is_admin_group,
+is_system_admin: req.user.is_system_admin
 });
 }
 };

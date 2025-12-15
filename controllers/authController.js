@@ -27,7 +27,8 @@ id: user.id,
 username: user.username,
 group_id: user.group_id,
 is_group_admin: user.is_group_admin,
-is_admin_group: group.is_admin_group
+is_admin_group: group.is_admin_group,
+is_system_admin: group.is_system_admin
 },
 process.env.JWT_SECRET,
 { expiresIn: '8h' }

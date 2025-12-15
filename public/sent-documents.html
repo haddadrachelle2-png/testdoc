@@ -94,45 +94,88 @@
       const token = localStorage.getItem("token");
       if (!token) location.href = "login.html";
 
-      const sentTable = document.getElementById("sentTable");
-      const groupFilter = document.getElementById("adminFilterContainer");
+      let destinationCache = {};
+      let filteredDocuments = [];
+      let pageDocuments = [];
 
       let currentPage = 1;
       let totalPages = 1;
-      let allDocuments = [];
+      let allDestinations = [];
 
+      const sentTable = document.getElementById("sentTable");
+      const groupFilter = document.getElementById("adminFilterContainer");
       const prevBtn = document.getElementById("prev-btn");
       const nextBtn = document.getElementById("next-btn");
       const pageInput = document.getElementById("page-input");
       const totalPagesSpan = document.getElementById("total-pages");
 
-      async function loadSentDocs(page = 1) {
-        try {
-          const start = document.getElementById("startDate").value;
-          const end = document.getElementById("endDate").value;
+      // -----------------------
+      // Load all destinations for filter
+      // -----------------------
+      async function loadAllDestinations() {
+        const groupSet = new Set();
+        let page = 1;
+        let totalPages = 1;
 
-          let url = `/api/documents/sent?page=${page}`;
-          const params = [];
-          if (start) params.push(`start=${start}`);
-          if (end) params.push(`end=${end}`);
-          if (params.length) url += "&" + params.join("&");
-
-          const res = await fetch(url, {
+        do {
+          const res = await fetch(`/api/documents/sent?page=${page}`, {
             headers: { Authorization: "Bearer " + token },
           });
 
-          if (!res.ok) {
-            alert("Error loading documents");
-            return;
+          const result = await res.json();
+          totalPages = result.total_pages;
+
+          for (const doc of result.data) {
+            const dests = await loadDestinationsForDoc(doc.id);
+            dests.forEach((d) => groupSet.add(d));
           }
+
+          page++;
+        } while (page <= totalPages);
+
+        groupFilter.innerHTML = `<option value="">جميع المجموعات</option>`;
+        [...groupSet].sort().forEach((name) => {
+          const opt = document.createElement("option");
+          opt.value = name;
+          opt.textContent = name;
+          groupFilter.appendChild(opt);
+        });
+      }
+
+      function applyFilter() {
+        const selectedGroup = groupFilter.value;
+
+        filteredDocuments = pageDocuments.filter((doc) => {
+          const dests = destinationCache[doc.id] || [];
+          return !selectedGroup || dests.includes(selectedGroup);
+        });
+
+        renderTable();
+      }
+      // -----------------------
+      // Load documents for current page
+      // -----------------------
+      async function loadSentDocs(page = 1) {
+        try {
+          const destination = groupFilter.value;
+
+          const params = new URLSearchParams({
+            page,
+            destination,
+          });
+
+          const res = await fetch(`/api/documents/sent?${params}`, {
+            headers: { Authorization: "Bearer " + token },
+          });
+
+          if (!res.ok) throw new Error("Failed to load");
 
           const result = await res.json();
 
-          allDocuments = result.data;
+          pageDocuments = result.data;
           currentPage = result.page;
           totalPages = result.total_pages;
 
-        //   await populateGroupFilter();
           renderTable();
           updatePagination();
         } catch (err) {
@@ -141,108 +184,109 @@
         }
       }
 
-     prevBtn.addEventListener("click", () => {
-  if (currentPage > 1) loadSentDocs(currentPage - 1);
-});
+      async function loadDestinationsForPage() {
+        destinationCache = {};
 
-nextBtn.addEventListener("click", () => {
-  if (currentPage < totalPages) loadSentDocs(currentPage + 1);
-});
+        for (const doc of pageDocuments) {
+          try {
+            const res = await fetch(`/api/documents/${doc.id}/destinations`, {
+              headers: { Authorization: "Bearer " + token },
+            });
 
-pageInput.addEventListener("change", (e) => {
-  let p = parseInt(e.target.value);
-  if (p >= 1 && p <= totalPages) loadSentDocs(p);
-  else e.target.value = currentPage; // reset if invalid
-});
+            const dests = await res.json();
 
-function updatePagination() {
-  totalPagesSpan.innerText = totalPages;
-  pageInput.value = currentPage;
-
-  prevBtn.disabled = currentPage <= 1;
-  nextBtn.disabled = currentPage >= totalPages;
-}
-      async function loadAllDestinations() {
-  try {
-    const res = await fetch(`/api/documents/sent?all=true`, {
-      headers: { Authorization: "Bearer " + token },
-    });
-    if (!res.ok) throw new Error("Failed to load all documents");
-
-    const docs = await res.json(); // Expect array of all documents
-
-    const groupSet = new Set();
-    for (const doc of docs) {
-      try {
-        const destRes = await fetch(`/api/documents/${doc.id}/destinations`, {
-          headers: { Authorization: "Bearer " + token },
-        });
-        const dests = await destRes.json();
-        dests.forEach(d => groupSet.add(d.name));
-      } catch (err) {
-        console.error("Error fetching destinations:", err);
-      }
-    }
-
-    // Clear and populate dropdown
-    groupFilter.innerHTML = `<option value="">جميع المجموعات</option>`;
-    Array.from(groupSet)
-      .sort()
-      .forEach(group => {
-        const option = document.createElement("option");
-        option.value = group;
-        option.textContent = group;
-        groupFilter.appendChild(option);
-      });
-
-  } catch (err) {
-    console.error(err);
-  }
-}
-
-      // Render table with optional group filter
-      // Render table with optional group filter
-      async function renderTable() {
-        const selectedGroup = groupFilter.value;
-        let filteredDocs = allDocuments;
-
-        sentTable.innerHTML = "";
-
-        for (const doc of filteredDocs) {
-          // fetch destination names
-          // const destRes = await fetch(`/api/documents/${doc.id}/destinations`, {
-          //     headers: {"Authorization":"Bearer "+token}
-          //  });
-          // const dests = await destRes.json();
-          // const destNames = dests.map(d=>d.name).join(", ");
-
-          // Filter by group if selected
-          if (selectedGroup && !doc.destinations.includes(selectedGroup)) {
-            continue;
+            destinationCache[doc.id] = Array.isArray(dests)
+              ? dests.map((d) => d.name)
+              : [];
+          } catch (err) {
+            destinationCache[doc.id] = [];
+            console.error(err);
           }
-
-          // Get creator's group name (using senderName which now contains group name from backend)
-          const creatorGroup = doc.senderName || "N/A";
-
-          sentTable.innerHTML += `
-            <tr>
-                <td>${doc.title}</td>
-                <td>${new Date(doc.created_at).toLocaleString()}</td>
-                <td>${new Date(doc.sent_at).toLocaleString()}</td>
-                <td>${doc.destinations}</td>
-            </tr>
-        `;
         }
       }
 
-      // Search button
-      // document.getElementById("searchBtn").addEventListener("click", renderTable);
-      document.getElementById("searchBtn").addEventListener("click", () => {
-        loadSentDocs(1);
+      async function loadDestinationsForDoc(docId) {
+        if (destinationCache[docId]) {
+          return destinationCache[docId];
+        }
+
+        const res = await fetch(`/api/documents/${docId}/destinations`, {
+          headers: { Authorization: "Bearer " + token },
+        });
+
+        if (!res.ok) return [];
+
+        const data = await res.json();
+
+        // normalize response
+        const names = Array.isArray(data) ? data.map((d) => d.name) : [];
+
+        destinationCache[docId] = names;
+        return names;
+      }
+      // -----------------------
+      // Render table with filter
+      // -----------------------
+      function renderTable() {
+        sentTable.innerHTML = "";
+
+        if (pageDocuments.length === 0) {
+          sentTable.innerHTML = `
+      <tr>
+        <td colspan="4" class="text-center">لا توجد نتائج</td>
+      </tr>`;
+          return;
+        }
+
+        for (const doc of pageDocuments) {
+          sentTable.innerHTML += `
+      <tr>
+        <td>${doc.title}</td>
+        <td>${new Date(doc.created_at).toLocaleString()}</td>
+        <td>${new Date(doc.sent_at).toLocaleString()}</td>
+        <td>${doc.destinations}</td>
+      </tr>`;
+        }
+      }
+      // -----------------------
+      // Pagination
+      // -----------------------
+      function updatePagination() {
+        totalPagesSpan.innerText = totalPages;
+        pageInput.value = currentPage;
+        prevBtn.disabled = currentPage <= 1;
+        nextBtn.disabled = currentPage >= totalPages;
+      }
+
+      prevBtn.addEventListener("click", () => {
+        if (currentPage > 1) loadSentDocs(currentPage - 1);
+      });
+      nextBtn.addEventListener("click", () => {
+        if (currentPage < totalPages) loadSentDocs(currentPage + 1);
+      });
+      pageInput.addEventListener("change", (e) => {
+        let p = parseInt(e.target.value);
+        if (p >= 1 && p <= totalPages) loadSentDocs(p);
+        else e.target.value = currentPage;
       });
 
-      loadAllDestinations(); // populate group filter with ALL documents
+      // -----------------------
+      // Filter dropdown change
+      // -----------------------
+      groupFilter.addEventListener("change", loadSentDocs(1));
+
+      // -----------------------
+      // Search button
+      // -----------------------
+      document
+        .getElementById("searchBtn")
+        .addEventListener("click", () => loadSentDocs(1));
+
+      // -----------------------
       // Initial load
+      // -----------------------
+
+      loadAllDestinations();
       loadSentDocs(1);
 
       // Download PDF report
@@ -296,15 +340,11 @@ function updatePagination() {
           }
           return res.json();
         })
-        .then((data) => {
-         
-        })
+        .then((data) => {})
         .catch((err) => {
           console.error(err);
           logout();
         });
-
-    
     </script>
   </body>
 </html>
