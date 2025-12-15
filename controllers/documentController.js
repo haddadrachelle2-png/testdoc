@@ -24,7 +24,7 @@ async function getPagingNumber(pool) {
 module.exports = {
   // Create a new document
     async create(req, res) {
-      const { title, content, doc_num, doc_date, number_papers, send_paper, send_electronic, remarks, destinations } =
+      const { title, content, doc_num, doc_date, number_papers, send_paper, send_electronic, remarks, is_personal, destinations } =
       req.body;
     if (
       !title ||
@@ -48,6 +48,7 @@ module.exports = {
         send_paper,
         send_electronic,
         remarks,
+        is_personal,
         req.user.id,
         req.user.is_group_admin,
         destinations
@@ -75,6 +76,7 @@ module.exports = {
         send_paper,
         send_electronic,
         remarks,
+        is_personal,
         destinations,
       } = req.body;
 
@@ -91,9 +93,6 @@ module.exports = {
         destArray = destinations.map(Number);
       }
 
-        
-      // send_paper = send_paper === "true" || send_paper === true;
-      // send_electronic = send_electronic === "true" || send_electronic === true;
       // Validation
       if (
         !title ||
@@ -123,6 +122,7 @@ module.exports = {
           send_paper,
           send_electronic,
           remarks,
+          is_personal,
           content,
           destArray
         );
@@ -138,6 +138,7 @@ module.exports = {
           send_paper,
           send_electronic,
           remarks,
+          is_personal,
           req.user.id,
           req.user.is_group_admin,
           destArray
@@ -253,6 +254,7 @@ module.exports = {
     d.send_paper,
     d.send_electronic,
     d.remarks,
+    d.is_personal,
     d.title,
     d.content,
     d.sender_id,
@@ -371,6 +373,7 @@ ORDER BY d.id DESC
           d.send_paper,
           d.send_electronic,
           d.remarks,
+          d.is_personal,
           d.title,
           d.content,
           d.sender_id,

@@ -102,6 +102,7 @@
 
       let currentPage = 1;
       let totalPages = 1;
+      let selectedDrafts = new Set();
 
       // -------------------------
       // LOAD DRAFTS FUNCTION
@@ -137,11 +138,14 @@
 
         // Fill table
         drafts.data.forEach((d) => {
+          const checked = selectedDrafts.has(d.id) ? "checked" : "";
           draftTable.innerHTML += `
       <tr>
-        <td><input type="checkbox" class="draftCheckbox" value="${d.id}" ${
-            d.is_sent ? "disabled" : ""
-          }></td>
+        <td> <input type="checkbox"
+           class="draftCheckbox"
+           data-id="${d.id}"
+           ${checked}
+           ${d.is_sent ? "disabled" : ""}></td>
         <td>${d.title}</td>
         <td>${d.doc_num}</td>
         <td>${
@@ -169,6 +173,9 @@
 
         prevBtn.disabled = currentPage <= 1;
         nextBtn.disabled = currentPage >= totalPages;
+
+        bindCheckboxEvents();
+        updateSelectAllState();
       }
 
       // -------------------------
@@ -199,12 +206,10 @@
         loadDrafts(1);
       });
 
-         // Send selected drafts
+      // Send selected drafts
       document.getElementById("sendBtn").addEventListener("click", async () => {
-        const selected = Array.from(
-          document.querySelectorAll(".draftCheckbox:checked")
-        ).map((cb) => cb.value);
-        if (selected.length === 0) {
+        // const selected = Array.from(selectedDrafts);
+        if (selectedDrafts.size === 0) {
           alert("Select at least one draft");
           return;
         }
@@ -215,7 +220,7 @@
             "Content-Type": "application/json",
             Authorization: "Bearer " + token,
           },
-          body: JSON.stringify({ draftIds: selected }),
+          body: JSON.stringify({ draftIds: Array.from(selectedDrafts) }),
         });
 
         const msg = await res.json();
@@ -223,12 +228,55 @@
           alert(msg.message || "Error sending drafts");
         } else {
           alert(msg.message);
-          loadDrafts();
+          selectedDrafts.clear();
+          selectAll.checked = false;
+          loadDrafts(1);
         }
       });
-      
+
       // Initial load
       loadDrafts();
+      function updateSelectAllState() {
+        const boxes = document.querySelectorAll(
+          ".draftCheckbox:not(:disabled)"
+        );
+        const checked = document.querySelectorAll(
+          ".draftCheckbox:not(:disabled):checked"
+        );
+
+        selectAll.checked = boxes.length > 0 && boxes.length === checked.length;
+      }
+      const selectAll = document.getElementById("selectAll");
+
+      selectAll.addEventListener("change", function () {
+        const checked = this.checked;
+
+        document.querySelectorAll(".draftCheckbox").forEach((cb) => {
+          cb.checked = checked;
+          const id = Number(cb.dataset.id);
+
+          if (checked) {
+            selectedDrafts.add(id);
+          } else {
+            selectedDrafts.delete(id);
+          }
+        });
+      });
+      function bindCheckboxEvents() {
+        document.querySelectorAll(".draftCheckbox").forEach((cb) => {
+          cb.addEventListener("change", function () {
+            const id = Number(this.dataset.id);
+
+            if (this.checked) {
+              selectedDrafts.add(id);
+            } else {
+              selectedDrafts.delete(id);
+            }
+
+            updateSelectAllState();
+          });
+        });
+      }
     </script>
   </body>
 </html>

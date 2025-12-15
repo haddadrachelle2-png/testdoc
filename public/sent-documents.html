@@ -25,6 +25,22 @@
         font-weight: bold;
         margin: 0 10px;
       }
+
+      @media print {
+        body * {
+          visibility: hidden;
+        }
+        #printableArea,
+        #printableArea * {
+          visibility: visible;
+        }
+        #printableArea {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+        }
+      }
     </style>
   </head>
   <body class="p-4">
@@ -32,7 +48,7 @@
       <h3>البريد المرسل</h3>
 
       <!-- Search Filters -->
-      <div class="row mb-3">
+      <div class="row mb-3" no-print>
         <div class="col-md-3">
           <label>تاريخ البدء</label>
           <input type="date" id="startDate" class="form-control" />
@@ -51,29 +67,34 @@
         <div class="col-md-3 align-self-end">
           <button id="searchBtn" class="btn btn-primary">بحث</button>
         </div>
-      </div>
 
-      <div class="d-flex justify-content-between gap-2 mt-3">
-        <button id="downloadReport" class="btn btn-outline-primary">
+        <div class="d-flex justify-content-between gap-2 mt-3">
+          <button id="printReport" class="btn btn-outline-success">
+            🖨️ طباعة التقرير
+          </button>
+          <!-- <button id="downloadReport" class="btn btn-outline-primary">
           📄 تحميل تقرير PDF
-        </button>
-        <a href="index.html" class="btn btn-secondary"
-          >⬅ العودة إلى لوحة التحكم</a
-        >
+        </button> -->
+          <a href="index.html" class="btn btn-secondary"
+            >⬅ العودة إلى لوحة التحكم</a
+          >
+        </div>
       </div>
 
       <!-- Sent Documents Table -->
-      <table class="table table-bordered mt-2">
-        <thead>
-          <tr>
-            <th>الموضوع</th>
-            <th>تاريخ الإنشاء</th>
-            <th>تاريخ الإرسال</th>
-            <th>الوجهات</th>
-          </tr>
-        </thead>
-        <tbody id="sentTable"></tbody>
-      </table>
+      <div id="printableArea">
+        <table class="table table-bordered mt-2">
+          <thead>
+            <tr>
+              <th>الموضوع</th>
+              <th>تاريخ الإنشاء</th>
+              <th>تاريخ الإرسال</th>
+              <th>الوجهات</th>
+            </tr>
+          </thead>
+          <tbody id="sentTable"></tbody>
+        </table>
+      </div>
       <div id="pagination" style="text-align: center; margin-top: 20px">
         <button id="prev-btn">السابق</button>
         <span
@@ -289,46 +310,46 @@
       loadAllDestinations();
       loadSentDocs(1);
 
-      // Download PDF report
-      document
-        .getElementById("downloadReport")
-        .addEventListener("click", async () => {
-          const start = document.getElementById("startDate").value;
-          const end = document.getElementById("endDate").value;
-          let url = "/api/documents/sent/report";
-          const params = [];
-          if (start) params.push(`start=${start}`);
-          if (end) params.push(`end=${end}`);
-          if (params.length) url += "?" + params.join("&");
+      // // Download PDF report
+      // document
+      //   .getElementById("downloadReport")
+      //   .addEventListener("click", async () => {
+      //     const start = document.getElementById("startDate").value;
+      //     const end = document.getElementById("endDate").value;
+      //     let url = "/api/documents/sent/report";
+      //     const params = [];
+      //     if (start) params.push(`start=${start}`);
+      //     if (end) params.push(`end=${end}`);
+      //     if (params.length) url += "?" + params.join("&");
 
-          // download by creating an anchor
-          const a = document.createElement("a");
-          a.href = url;
-          a.target = "_blank";
-          a.rel = "noopener";
-          // include token via header by fetching blob then creating object URL
-          try {
-            const res = await fetch(url, {
-              headers: { Authorization: "Bearer " + token },
-            });
-            if (!res.ok) {
-              alert("Failed to generate report");
-              return;
-            }
-            const blob = await res.blob();
-            const blobUrl = URL.createObjectURL(blob);
-            const dl = document.createElement("a");
-            dl.href = blobUrl;
-            dl.download = "sent-documents-report.pdf";
-            document.body.appendChild(dl);
-            dl.click();
-            dl.remove();
-            URL.revokeObjectURL(blobUrl);
-          } catch (err) {
-            console.error(err);
-            alert("Network error while generating report");
-          }
-        });
+      //     // download by creating an anchor
+      //     const a = document.createElement("a");
+      //     a.href = url;
+      //     a.target = "_blank";
+      //     a.rel = "noopener";
+      //     // include token via header by fetching blob then creating object URL
+      //     try {
+      //       const res = await fetch(url, {
+      //         headers: { Authorization: "Bearer " + token },
+      //       });
+      //       if (!res.ok) {
+      //         alert("Failed to generate report");
+      //         return;
+      //       }
+      //       const blob = await res.blob();
+      //       const blobUrl = URL.createObjectURL(blob);
+      //       const dl = document.createElement("a");
+      //       dl.href = blobUrl;
+      //       dl.download = "sent-documents-report.pdf";
+      //       document.body.appendChild(dl);
+      //       dl.click();
+      //       dl.remove();
+      //       URL.revokeObjectURL(blobUrl);
+      //     } catch (err) {
+      //       console.error(err);
+      //       alert("Network error while generating report");
+      //     }
+      //   });
 
       fetch("/api/users/me", {
         headers: { Authorization: "Bearer " + token },
@@ -345,6 +366,16 @@
           console.error(err);
           logout();
         });
+
+      document.getElementById("printReport").addEventListener("click", () => {
+        // Make sure the table is fully loaded
+        console.log("Printing report for", pageDocuments.length, "documents");
+        if (!pageDocuments.length) {
+          alert("لا توجد بيانات للطباعة");
+          return;
+        }
+        window.print();
+      });
     </script>
   </body>
 </html>

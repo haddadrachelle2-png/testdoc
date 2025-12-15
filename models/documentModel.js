@@ -11,6 +11,7 @@ module.exports = {
     send_paper,
     send_electronic,
     remarks,
+    is_personal,
     sender_id,
     is_admin_group,
     destinationGroups
@@ -26,6 +27,7 @@ module.exports = {
       .input("send_paper", send_paper)
       .input("send_electronic", send_electronic)
       .input("remarks", remarks)
+      .input("is_personal", is_personal)
       .input("is_admin_group", is_admin_group)
       .input("sender_id", sender_id).query(`
                 INSERT INTO documents (title, content, doc_num, doc_date, number_papers, send_paper, send_electronic, remarks, sender_id)
@@ -69,6 +71,7 @@ module.exports = {
     send_paper,
     send_electronic,
     remarks,
+    is_personal,
     content,
     destinations
   ) {
@@ -87,8 +90,9 @@ module.exports = {
       .input("send_paper", send_paper)
       .input("send_electronic", send_electronic)
       .input("remarks", remarks)
+      .input("is_personal", is_personal)
       .query(
-        `UPDATE documents SET title=@title, content=@content, doc_num=@doc_num, doc_date=@doc_date, number_papers=@number_papers, send_paper=@send_paper, send_electronic=@send_electronic, remarks=@remarks
+        `UPDATE documents SET title=@title, content=@content, doc_num=@doc_num, doc_date=@doc_date, number_papers=@number_papers, send_paper=@send_paper, send_electronic=@send_electronic, remarks=@remarks, is_personal=@is_personal
         WHERE id=@id AND is_sent=0`
       );
 
