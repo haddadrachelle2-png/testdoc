@@ -62,13 +62,13 @@
         <thead>
           <tr>
             <th><input type="checkbox" id="selectAll" /></th>
+            <th>الرقم</th>
+            <th>تاريخ المستند</th>
             <th>الموضوع</th>
-            <th>المحتوى</th>
-            <th>تاريخ الإنشاء</th>
             <th>مرسل من قبل</th>
-            <!-- <th>Received</th> -->
-            <th>المرسل إليه</th>
+            <th>المرسل إليهم</th>
             <th>الإجراءات</th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="inboxTable"></tbody>
@@ -89,130 +89,137 @@
       >
       <button id="next-btn">التالي</button>
     </div>
-<script>
-  const token = localStorage.getItem("token");
-  if (!token) location.href = "login.html";
+    <script>
+      const token = localStorage.getItem("token");
+      if (!token) location.href = "login.html";
 
-  const inboxTable = document.getElementById("inboxTable");
+      const inboxTable = document.getElementById("inboxTable");
 
-  // --- Pagination Variables ---
-  let currentPage = 1;
-  let totalPages = 1;
+      // --- Pagination Variables ---
+      let currentPage = 1;
+      let totalPages = 1;
 
-  // Load inbox with optional date filter + pagination
-  async function loadInbox(page = 1) {
-    currentPage = page;
+      // Load inbox with optional date filter + pagination
+      async function loadInbox(page = 1) {
+        currentPage = page;
 
-    const start = document.getElementById("startDate").value;
-    const end = document.getElementById("endDate").value;
+        const start = document.getElementById("startDate").value;
+        const end = document.getElementById("endDate").value;
 
-    let url = `/api/documents/inbox?page=${page}`;
-    const params = [];
+        let url = `/api/documents/inbox?page=${page}`;
+        const params = [];
 
-    if (start) params.push(`start=${start}`);
-    if (end) params.push(`end=${end}`);
+        if (start) params.push(`start=${start}`);
+        if (end) params.push(`end=${end}`);
 
-    if (params.length) url += "&" + params.join("&");
+        if (params.length) url += "&" + params.join("&");
 
-    const res = await fetch(url, {
-      headers: { Authorization: "Bearer " + token },
-    });
+        const res = await fetch(url, {
+          headers: { Authorization: "Bearer " + token },
+        });
 
-    const data = await res.json();
-    console.log(data);
+        const data = await res.json();
+        console.log(data);
 
-    // BACKEND MUST RETURN:
-    // { data: [...], page: 1, total_pages: 5 }
+        // BACKEND MUST RETURN:
+        // { data: [...], page: 1, total_pages: 5 }
 
-    const inbox = data.data;
-    totalPages = data.total_pages;
+        const inbox = data.data;
+        totalPages = data.total_pages;
 
-    // Update pagination info
-    document.getElementById("total-pages").innerText = totalPages;
-    document.getElementById("page-input").value = currentPage;
+        // Update pagination info
+        document.getElementById("total-pages").innerText = totalPages;
+        document.getElementById("page-input").value = currentPage;
 
-    document.getElementById("prev-btn").disabled = currentPage <= 1;
-    document.getElementById("next-btn").disabled = currentPage >= totalPages;
+        document.getElementById("prev-btn").disabled = currentPage <= 1;
+        document.getElementById("next-btn").disabled =
+          currentPage >= totalPages;
 
-    // Load table
-    inboxTable.innerHTML = "";
-// ${d.is_received ? "disabled" : ""}
-    inbox.forEach((d) => {
-      inboxTable.innerHTML += `
+        // Load table
+        inboxTable.innerHTML = "";
+        // ${d.is_received ? "disabled" : ""}
+        inbox.forEach((d) => {
+          inboxTable.innerHTML += `
         <tr>
-            <td><input type="checkbox" class="inboxCheckbox" value="${d.id}" ></td>
-            <td>${d.title}</td>
-            <td>${d.content}</td>
-            <td>${new Date(d.created_at).toLocaleString()}</td>
+            <td><input type="checkbox" class="inboxCheckbox" value="${
+              d.id
+            }" ></td>
+             <td>${d.doc_num}</td>
+             <td>${new Date(d.doc_date).toLocaleString()}</td>
+             <td>${d.title}</td>
             <td>${d.senderName}</td>
             <td>${d.destinations || "N/A"}</td>
-            <td>${d.is_received || d.is_admin_group ? "موافق عليه" : "قيد الانتظار"}</td>
-           
-        </tr>
+            <td>${
+              d.is_received || d.is_admin_group ? "موافق عليه" : "قيد الانتظار"
+            }</td>
+
+            <td>  <a href="view-document.html?id=${d.id}"  class="btn btn-sm btn-info"> عرض
+                  </a>
+                  </td>
+            </tr>
       `;
-    });
-  }
+        });
+      }
 
-        // <td>
-            //     <button onclick="viewDoc(${d.id})" class="btn btn-sm btn-primary">View</button>
-            // </td>
-  // Search Button
-  document.getElementById("searchBtn").addEventListener("click", () => loadInbox(1));
+      // Search Button
+      document
+        .getElementById("searchBtn")
+        .addEventListener("click", () => loadInbox(1));
 
-  // Pagination Buttons
-  document.getElementById("prev-btn").addEventListener("click", () => {
-    if (currentPage > 1) loadInbox(currentPage - 1);
-  });
+      // Pagination Buttons
+      document.getElementById("prev-btn").addEventListener("click", () => {
+        if (currentPage > 1) loadInbox(currentPage - 1);
+      });
 
-  document.getElementById("next-btn").addEventListener("click", () => {
-    if (currentPage < totalPages) loadInbox(currentPage + 1);
-  });
+      document.getElementById("next-btn").addEventListener("click", () => {
+        if (currentPage < totalPages) loadInbox(currentPage + 1);
+      });
 
-  // Page number textbox
-  document.getElementById("page-input").addEventListener("change", (e) => {
-    let p = parseInt(e.target.value);
-    if (p >= 1 && p <= totalPages) loadInbox(p);
-    else e.target.value = currentPage; // reset if invalid
-  });
+      // Page number textbox
+      document.getElementById("page-input").addEventListener("change", (e) => {
+        let p = parseInt(e.target.value);
+        if (p >= 1 && p <= totalPages) loadInbox(p);
+        else e.target.value = currentPage; // reset if invalid
+      });
 
-  // Select All
-  document.getElementById("selectAll").addEventListener("change", (e) => {
-    document.querySelectorAll(".inboxCheckbox").forEach((cb) => {
-      if (!cb.disabled) cb.checked = e.target.checked;
-    });
-  });
+      // Select All
+      document.getElementById("selectAll").addEventListener("change", (e) => {
+        document.querySelectorAll(".inboxCheckbox").forEach((cb) => {
+          if (!cb.disabled) cb.checked = e.target.checked;
+        });
+      });
 
-  // Mark Selected as Seen
-  document.getElementById("markBtn").addEventListener("click", async () => {
-    const selected = Array.from(
-      document.querySelectorAll(".inboxCheckbox:checked")
-    ).map((cb) => cb.value);
+      // Mark Selected as Seen
+      document.getElementById("markBtn").addEventListener("click", async () => {
+        const selected = Array.from(
+          document.querySelectorAll(".inboxCheckbox:checked")
+        ).map((cb) => cb.value);
 
-    if (selected.length === 0) {
-      alert("Select at least one document");
-      return;
-    }
+        if (selected.length === 0) {
+          alert("Select at least one document");
+          return;
+        }
 
-    const res = await fetch("/api/documents/markseen", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
-      },
-      body: JSON.stringify({ inboxIds: selected }),
-    });
+        const res = await fetch("/api/documents/markseen", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + token,
+          },
+          body: JSON.stringify({ inboxIds: selected }),
+        });
 
-    const msg = await res.json();
-    alert(msg.message || "Updated");
-    loadInbox(currentPage);
-  });
+        const msg = await res.json();
+        alert(msg.message || "Updated");
+        loadInbox(currentPage);
+      });
 
-  function viewDoc(id) {
-    window.location.href = `view-document.html?id=${id}`;
-  }
+      function viewDoc(id) {
+        window.location.href = `view-document.html?id=${id}`;
+      }
 
-  // Initial load
-  loadInbox();
-</script>
-</body>
+      // Initial load
+      loadInbox();
+    </script>
+  </body>
 </html>

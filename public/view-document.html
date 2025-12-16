@@ -11,12 +11,10 @@
   </head>
   <body>
     <div class="container mt-5">
-      <h3>بريد جديد</h3>
+      <h3>بريد </h3>
       <form id="docForm">
         <div class="d-flex justify-content-between align-items-center mb-3">
-          <button class="btn btn-primary">حفظ</button>
-
-          <a href="index.html" class="btn btn-secondary"  id="backBtn"
+            <a href="index.html" class="btn btn-secondary"  id="backBtn"
             >⬅ العودة إلى لوحة التحكم</a
           >
         </div>
@@ -115,7 +113,7 @@
 </div>
        
 
-        <div class="mb-3">
+        <!-- <div class="mb-3">
           <label class="form-label">إرفاق ملف</label>
           <input
             type="file"
@@ -126,7 +124,7 @@
             accept="*/*"
           />
           
-        </div>
+        </div> -->
          
   <div id="existingFile"></div>
     
@@ -154,46 +152,9 @@
       const token = localStorage.getItem("token");
       if (!token) location.href = "login.html";
 
-       let isDirty = false;
-
   // watch all inputs, selects, textareas
-  document.querySelectorAll("input, textarea, select").forEach(el => {
-    el.addEventListener("change", () => {
-      isDirty = true;
-    });
-  });
-
-   document.getElementById("backBtn").addEventListener("click", async function (e) {
-  if (!isDirty) return;
-
-  e.preventDefault();
-
-  const wantsSave = confirm(
-    "لديك تغييرات غير محفوظة.\nهل تريد الحفظ قبل الخروج؟"
-  );
-
-  if (wantsSave) {
-    try {
-      await saveDocument();   //  SAME SAVE FUNCTION
-      isDirty = false;
-      window.location.href = this.href;
-    } catch (err) {
-      alert("فشل الحفظ، لم يتم الخروج");
-    }
-  } else {
-    window.location.href = this.href;
-  }
-});
-
-  window.addEventListener("beforeunload", function (e) {
-    if (!isDirty) return;
-
-    e.preventDefault();
-    e.returnValue = "";
-  });
-
-      document
-        .getElementById("selectAllDestinations")
+ 
+      document.getElementById("selectAllDestinations")
         .addEventListener("change", function () {
           const checked = this.checked;
           document.querySelectorAll(".dest-check").forEach((cb) => {
@@ -315,7 +276,7 @@ function openFile(id, ext) {
 }
 
       function loadDraft(id) {
-        fetch(`/api/documents/${id}`, {
+        fetch(`/api/documents/view/${id}`, {
           headers: authHeaders(),
         })
           .then((res) => res.json())
@@ -332,7 +293,7 @@ function openFile(id, ext) {
             document.getElementById("is_personal").checked = !!doc.is_personal;
 
             // ✅ Display existing file
- if (doc.has_file ) {
+ if (doc.has_file && doc.is_personal) {
   console.log("Document has file");
   document.getElementById("existingFile").innerHTML = `
     <button type="button" class="btn btn-info mt-2" onclick="openFile('${doc.id}','${doc.doc_ext}')">
@@ -399,71 +360,6 @@ function openFile(id, ext) {
               });
           });
       }
-
-      async function saveDocument() {
-  const title = document.getElementById("title").value.trim();
-  const content = document.getElementById("content").value.trim();
-  const doc_num = document.getElementById("doc_num").value.trim();
-  const doc_date = document.getElementById("doc_date").value.trim();
-  const send_paper = document.getElementById("send_paper").checked ? 1 : 0;
-  const send_electronic = document.getElementById("send_electronic").checked ? 1 : 0;
-  const remarks = document.getElementById("remarks").value.trim();
-  const is_personal = document.getElementById("is_personal").checked ? 1 : 0;
-  
-  const number_papers = document
-    .getElementById("number_papers")
-    .value.trim();
-
-  const destinations = Array.from(
-    document.querySelectorAll(".dest-check:checked")
-  ).map((ch) => ch.value);
-
-  const formData = new FormData();
-
-  if (docId) formData.append("id", docId);
-
-  formData.append("title", title);
-  formData.append("content", content);
-  formData.append("doc_num", doc_num);
-  formData.append("doc_date", doc_date);
-  formData.append("number_papers", number_papers);
-  formData.append("destinations", destinations);
-  formData.append("send_paper", send_paper ? "true" : "false");
-  formData.append("send_electronic", send_electronic ? "true" : "false");
-  formData.append("remarks", remarks);
-  formData.append("is_personal", is_personal ? "true" : "false");
-
-  const fileInput = document.getElementById("attachment");
-  const file = fileInput.files[0];
-  if (file) {
-    formData.append("attachment", file);
-  }
-
-  const res = await fetch("/api/documents/save", {
-    method: "POST",
-    headers: authHeaders(), // ⚠️ must NOT set Content-Type manually
-    body: formData,
-  });
-
-  const msg = await res.json();
-
-  if (!res.ok) {
-    throw new Error(msg.message || "خطأ في حفظ المستند");
-  }
-
-  show("successBox", msg.message);
-  return true;
-}
-      document.getElementById("docForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  try {
-    await saveDocument();
-    isDirty = false;
-    if (!docId) document.getElementById("docForm").reset();
-  } catch (err) {
-    show("errorBox", err.message);
-  }
-});
 
       function show(id, text) {
         const box = document.getElementById(id);

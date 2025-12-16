@@ -35,11 +35,11 @@ router.get('/sent', auth, documentController.getSentDocuments);
 router.get('/sent/report', auth, documentController.generateSentReportPdf);
 
 router.get('/:id/destinations', auth, documentController.getDocumentDestinations);
+router.get("/:id/file", auth, documentController.getDraftFile);
 
 // ✅ Get a single draft by ID (for editing) - MUST BE LAST
 router.get('/:id', auth, documentController.getDraftById);
-router.get("/:id/file", auth, documentController.getDraftFile);
-// Multer config - store file in memory as buffer
+router.get('/view/:id', auth, documentController.getViewDocumentById);
 
 module.exports = router;
 

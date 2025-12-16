@@ -311,6 +311,88 @@ ORDER BY d.id DESC
     }
   },
 
+   async getViewDocumentById(req, res) {
+    const docId = req.params.id;
+    // const userId = req.user.id;
+    const groupId = req.user.group_id;
+    
+    try {
+      const pool = await getPool();
+
+      // Fetch main document
+      const docResult = await pool
+        .request()
+        .input("id", docId)
+        .input("group_id", groupId).query(`
+                    SELECT 
+                    CASE WHEN d.doc_file IS NOT NULL THEN 1 ELSE 0 END AS has_file,d.doc_ext,
+                    
+    d.id,
+    d.doc_num,
+    d.doc_date,
+    d.number_papers,
+    d.send_paper,
+    d.send_electronic,
+    d.remarks,
+    d.is_personal,
+    d.title,
+    d.content,
+    d.sender_id,
+    d.created_at,
+    d.is_sent,
+    d.sent_at,
+    d.admin_view,
+    d.admin_view_date,
+    d.is_received,
+    d.received_date,
+    (
+        SELECT STUFF((
+            SELECT ', ' + g.name
+            FROM document_destinations dd
+            JOIN groups g ON g.id = dd.group_id
+            WHERE dd.document_id = d.id
+            FOR XML PATH(''), TYPE
+        ).value('.', 'NVARCHAR(MAX)'), 1, 2, '')
+    ) AS destinations
+   FROM   dbo.documents d  JOIN
+   dbo.document_destinations ON d.id = dbo.document_destinations.document_id
+   where document_destinations.group_id = @group_id
+and d.id=@id 
+
+ORDER BY d.id DESC
+                    
+                `);
+
+      if (!docResult.recordset.length) {
+        return res.status(404).json({ message: "Draft not found" });
+      }
+
+      const document = docResult.recordset[0];
+      if (document.doc_date)
+        document.doc_date = document.doc_date.toISOString().split("T")[0];
+
+      // Fetch destinations
+      const destResult = await pool
+        .request()
+        .input("document_id", docId)
+        .query(
+          `SELECT group_id FROM document_destinations WHERE document_id=@document_id`
+        );
+
+      const destinations = destResult.recordset.map((r) => r.group_id);
+      // Return JSON with file info
+      res.json({
+        ...document,
+        destinations,
+        fileUrl: document.has_file ? `/api/documents/${docId}/file` : null,
+      });
+      // res.json({ ...document, destinations });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Server error" });
+    }
+  },
+
   async getDraftFile(req, res) {
     const docId = req.params.id;
     const userId = req.user.id;
@@ -642,6 +724,9 @@ AND EXISTS (
           d.created_at,
           d.sender_id,
           g.name AS senderName,
+          d.doc_num,
+          d.doc_date,
+         
           (
             SELECT STUFF((
               SELECT ', ' + g2.name

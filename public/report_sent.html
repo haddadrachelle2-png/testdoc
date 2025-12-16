@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تقرير المستندات المرسلة</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+  <style>
+    .file-viewer {
+      max-width: 200px;
+      max-height: 150px;
+    }
+    @media print {
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container mt-5">
+    <h3 class="mb-4">تقرير المستندات المرسلة</h3>
+
+    <div class="mb-3 d-flex gap-2 no-print">
+      <input type="date" id="startDate" class="form-control" placeholder="من تاريخ">
+      <input type="date" id="endDate" class="form-control" placeholder="إلى تاريخ">
+      <button id="filterBtn" class="btn btn-primary">عرض</button>
+      <button onclick="window.print()" class="btn btn-success">طباعة</button>
+    </div>
+
+    <table class="table table-bordered table-striped" id="reportTable">
+      <thead class="table-dark">
+        <tr>
+          <th>#</th>
+          <th>الرقم</th>
+          <th>العنوان</th>
+          <th>المرسل إليه</th>
+          <th>تاريخ الإرسال</th>
+          <th>المحتوى</th>
+          <th>ملف مرفق</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="7" class="text-center">جارٍ التحميل...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    const token = localStorage.getItem("token");
+    if (!token) location.href = "login.html";
+
+    function authHeaders() {
+      return { Authorization: "Bearer " + token };
+    }
+
+    async function loadReport() {
+      const start = document.getElementById("startDate").value;
+      const end = document.getElementById("endDate").value;
+
+      let url = `/api/documents/sent`;
+      const params = [];
+      if (start) params.push(`start=${start}`);
+      if (end) params.push(`end=${end}`);
+      if (params.length) url += `?${params.join("&")}`;
+
+      const res = await fetch(url, { headers: authHeaders() });
+      const data = await res.json();
+
+      const tbody = document.querySelector("#reportTable tbody");
+      tbody.innerHTML = "";
+
+      if (!data.data.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center">لا توجد مستندات</td></tr>`;
+        return;
+      }
+
+      data.data.forEach((doc, idx) => {
+        const tr = document.createElement("tr");
+
+        let fileHtml = "";
+        if (doc.has_file) {
+          // Show as embedded iframe if PDF
+          if (doc.doc_ext === "pdf") {
+            fileHtml = `<iframe class="file-viewer" src="/api/documents/${doc.id}/file" frameborder="0"></iframe>`;
+          } else {
+            fileHtml = `<span>${doc.doc_name || "ملف مرفق"}</span>`;
+          }
+        }
+
+        tr.innerHTML = `
+          <td>${idx + 1}</td>
+          <td>${doc.doc_num || ""}</td>
+          <td>${doc.title || ""}</td>
+          <td>${doc.destinations || ""}</td>
+          <td>${doc.sent_at ? new Date(doc.sent_at).toLocaleString() : ""}</td>
+          <td>${doc.content ? doc.content.substring(0, 100) + (doc.content.length > 100 ? "..." : "") : ""}</td>
+          <td>${fileHtml}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById("filterBtn").addEventListener("click", loadReport);
+
+    loadReport();
+  </script>
+</body>
+</html>
